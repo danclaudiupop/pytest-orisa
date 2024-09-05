@@ -1,0 +1,190 @@
+$background: rgb(24, 24, 27)
+$primary: cyan;
+$secondary: darkgrey;
+
+* {
+  scrollbar-color: $background-lighten-2;
+  scrollbar-color-hover: $primary;
+  scrollbar-color-active: $primary;
+  scrollbar-background: $background; 
+  scrollbar-background-active: $background;
+  scrollbar-background-hover: $background;
+
+}
+
+RunContent:focus-within,
+#tree-view:focus-within {
+  border: $primary;
+}
+
+.-show-tree #tree-view {
+  display: block;
+  max-width: 50%;
+}
+
+
+Footer {
+  border: none;
+  background: $background;
+
+  & FooterKey {
+    color: $primary 85%;
+    background: transparent;
+
+    .footer-key--key {
+      color: white;
+      background: transparent;
+    }
+
+    &:hover {
+      color: $text 100%;
+    }
+  }
+}
+
+
+Toast {
+  width: auto;
+  background: $surface; 
+  tint: white 0%;
+  color: $text;
+  border-right: none;
+  border-left: wide $primary;
+  padding: 1 2;
+  margin: 0 0 1 0;
+  offset-y: 1;
+}
+
+ToastRack {
+  align: right top;
+}
+
+Toast.-information {
+  border-right: none;
+  border-left: wide $primary;
+}
+
+Toast.-warning {
+  border-right: none;
+  border-left: wide $secondary;
+}
+
+Toast.-error {
+  border-right: none;
+  border-left: wide $error;
+}
+
+Toast .toast--title {
+  color: $primary;
+}
+
+Button {
+  padding: 0 1;
+  height: 1;
+  border: none;
+  text-style: bold;
+  min-width: 10;
+
+  &:disabled {
+    opacity: 99%;
+  }
+  &:hover {
+      text-style: b;
+      border: none;
+      background: $primary;
+  }
+  & > LoadingIndicator {
+    color: $primary;
+    width: auto;
+  }
+}
+
+
+Input {
+  padding: 0 1;
+  height: 1;
+  background: $surface;
+  border: none;
+  &.-invalid {
+    padding-left: 0;
+    border-left: outer $error;
+  }
+
+  &:focus {
+    background: $surface-lighten-1;
+    padding-left: 0;
+    border-left: outer $surface-lighten-2;
+    &.-invalid {
+      border-left: outer $error;
+    }
+
+    & .input--cursor {
+      color: $text;
+      background: $accent;
+      text-style: not reverse;
+    }
+
+  }
+}
+
+
+Select {
+  height: 1;
+  border: none;
+  padding: 0 1;
+  width: 22;
+
+  & > SelectCurrent {
+    height: 1;
+    border: none;
+    padding: 0 1;
+  }
+
+  & > SelectOverlay {
+    padding: 0;
+    border: vkey grey 50%;
+  }
+}
+
+DataTable {
+  scrollbar-gutter: stable;
+
+  & .datatable--header {
+    background: $boost;
+    color: $text-muted;
+  }
+
+  &:focus {
+    .datatable--cursor {
+      background: $primary;
+      color: $text;
+    }
+
+    .datatable--hover {
+      background: $primary 0%;
+      color: $text;
+    }
+  }
+
+  &:blur {
+    .datatable--cursor {
+      background: $primary-lighten-1 0%;
+      color: $text;
+    }
+
+    .datatable--fixed {
+      background: $primary 0%;
+      color: $text;
+    }
+
+    .datatable--fixed-cursor {
+      background: $primary 0%;
+      color: $text;
+    }
+
+    .datatable--hover {
+      background: $primary-lighten-1 0%;
+      color: $text;
+    }
+  }
+}
