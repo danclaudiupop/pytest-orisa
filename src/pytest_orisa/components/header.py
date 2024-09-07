@@ -3,11 +3,12 @@ from typing import TYPE_CHECKING, cast
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
+from textual.dom import DOMNode
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input
 
 if TYPE_CHECKING:
-    from pytest_orisa.app import OrisaApp
+    pass
 
 
 class RunButton(Button):
@@ -21,55 +22,63 @@ class RunButton(Button):
         self.loading = False
 
 
-class CustomArgsModal(ModalScreen):
+class PytestArgsModal(ModalScreen):
     DEFAULT_CSS = """
-        CustomArgsModal {
+        PytestArgsModal {
             align: center middle;
-        }
 
-        CustomArgsModal > Container {
-            width: 30%;
-            height: auto;
-            background: $background;
-            border: solid darkgrey 50%;
-            padding: 1 2;
-        }
+            & .ignore-button {
+                margin-left: 0;
+            }
 
-        CustomArgsModal VerticalScroll {
-            height: auto;
-            max-height: 70vh;
-        }
+            & .ignore-active {
+                color: green;
+            }
 
-        CustomArgsModal .input-row {
-            width: 100%;
-            height: 1;
-            margin-bottom: 1;
-        }
+            & .ignore-inactive {
+                color: $text-muted;
+            }
 
-        CustomArgsModal .input-row Input {
-            width: 70%;
-            dock: left;
-        }
+            & > Container {
+                width: 30%;
+                height: auto;
+                background: $background;
+                border: solid darkgrey 50%;
+                padding: 1 2;
+            }
 
-        CustomArgsModal .input-row .remove-button {
-            dock: right;
-        }
+            & VerticalScroll {
+                height: auto;
+                max-height: 70vh;
+            }
 
-        CustomArgsModal .input-row .ignore-button {
-            margin-left: 1;
-        }
+            & .input-row {
+                width: 100%;
+                height: 1;
+                margin-bottom: 1;
 
-        CustomArgsModal #button-container {
-            height: 1;
-            dock: bottom;
-        }
+                & Input {
+                    width: 70%;
+                    dock: left;
+                }
 
-        CustomArgsModal #add-arg {
-            dock: left;
-        }
+                & .remove-button {
+                    dock: right;
+                }
+            }
 
-        CustomArgsModal #done {
-            dock: right;
+            & #button-container {
+                height: 1;
+                dock: bottom;
+            }
+
+            & #add-arg {
+                dock: left;
+            }
+
+            & #done {
+                dock: right;
+            }
         }
     """
 
@@ -102,7 +111,7 @@ class CustomArgsModal(ModalScreen):
         input_id = f"custom-arg-input-{len(self.query('#inputs-container .input-row'))}"
         input_widget = Input(
             value=value,
-            placeholder="Enter a custom pytest argument (e.g., --foo=bar)",
+            placeholder="e.g., --foo=bar",
             id=input_id,
         )
         remove_button = Button(
@@ -112,9 +121,9 @@ class CustomArgsModal(ModalScreen):
             id=f"{input_id}-remove",
         )
         ignore_button = Button(
-            "[green]■[/]",
+            "◼",
             tooltip="Ignore this argument",
-            classes="ignore-button",
+            classes="ignore-button ignore-active",
             id=f"{input_id}-ignore",
         )
 
@@ -128,24 +137,44 @@ class CustomArgsModal(ModalScreen):
         if inputs:
             inputs.last().focus()
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "add-arg":
-            new_input = self.add_input()
-            self.query_one("#inputs-container").mount(new_input)
-            self.focus_last_input()
-        elif event.button.id == "done":
-            self.save_custom_args()
-            self.dismiss()
-        elif "remove-button" in event.button.classes:
-            event.button.parent.remove()
+    @on(Button.Pressed, "#add-arg")
+    def add_new_input(self) -> None:
+        new_input = self.add_input()
+        self.query_one("#inputs-container").mount(new_input)
+        self.focus_last_input()
 
-    def save_custom_args(self) -> None:
-        custom_args = []
+    @on(Button.Pressed, "#done")
+    def finish_editing(self) -> None:
+        self.save_pytest_args()
+        self.dismiss()
+
+    @on(Button.Pressed, ".remove-button")
+    def remove_input(self, event: Button.Pressed) -> None:
+        cast(Horizontal, event.button.parent).remove()
+
+    @on(Button.Pressed, ".ignore-button")
+    def toggle_ignore(self, event: Button.Pressed) -> None:
+        button = event.button
+        input_row: DOMNode | None = button.parent
+
+        if input_row is not None:
+            if "ignore-active" in button.classes:
+                button.remove_class("ignore-active")
+                button.add_class("ignore-inactive")
+                input_row.add_class("ignored")
+            else:
+                button.remove_class("ignore-inactive")
+                button.add_class("ignore-active")
+                input_row.remove_class("ignored")
+
+    def save_pytest_args(self) -> None:
+        args = []
         for input_row in self.query(".input-row"):
-            input_widget = input_row.query_one(Input)
-            if stripped_value := input_widget.value.strip():
-                custom_args.append(stripped_value)
-        self.app.pytest_cmd_args = custom_args
+            if "ignored" not in input_row.classes:
+                input_widget = input_row.query_one(Input)
+                if stripped_value := input_widget.value.strip():
+                    args.append(stripped_value)
+        self.app.pytest_cmd_args = args  # type: ignore
 
     def on_key(self, event) -> None:
         if event.key == "escape":
@@ -179,8 +208,4 @@ class AppHeader(Horizontal):
 
     @on(Button.Pressed, "#options")
     def show_custom_args_modal(self) -> None:
-        self.app.push_screen(CustomArgsModal())
-
-    @property
-    def orisa(self) -> "OrisaApp":
-        return cast("OrisaApp", self.app)
+        self.app.push_screen(PytestArgsModal())
