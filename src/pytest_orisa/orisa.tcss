@@ -78,6 +78,7 @@ Toast .toast--title {
   color: $primary;
 }
 
+
 Button {
   padding: 0 1;
   height: 1;
@@ -132,7 +133,6 @@ Select {
   height: 1;
   border: none;
   padding: 0 1;
-  width: 22;
 
   & > SelectCurrent {
     height: 1;
@@ -145,6 +145,7 @@ Select {
     border: vkey grey 50%;
   }
 }
+
 
 DataTable {
   scrollbar-gutter: stable;

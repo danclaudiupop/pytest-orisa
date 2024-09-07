@@ -2,7 +2,7 @@ import os
 from functools import partial
 from pathlib import Path
 from subprocess import Popen
-from typing import Any, cast
+from typing import cast
 
 from pytest import ExitCode
 from textual import on, work
@@ -107,7 +107,7 @@ class OrisaApp(App):
         super().__init__()
         self.event_dispatcher = EventDispatcher()
         self.current_selected_node: dict = {}
-        self.pytest_cmd_args: dict[str, Any] = {}
+        self.pytest_cmd_args = []
 
     async def on_load(self) -> None:
         self.start_event_dispatcher()

@@ -32,9 +32,14 @@ class PassedTestDataTable(DataTable):
         self.app.select_node(self.app.get_tree_node_by_pytest_nodeid(nodeid))
 
 
-class FailedTestTraceback(Label):
+class TestOutputDisplay(Label):
     DEFAULT_CSS = """
-        FailedTestTraceback {
+        TestOutputDisplay {
+            & > Label {
+                overflow: auto;
+                width: 100%
+            }
+
             & > Grid {
                 height: 1;
                 background: $panel;
@@ -68,7 +73,7 @@ class FailedTestTraceback(Label):
         )
 
     @on(Button.Pressed, selector="#copy-to-clipboard")
-    def copy_traceback(self) -> None:
+    def copy_output(self) -> None:
         self.app.copy_to_clipboard(self.content.code)
         self.app.notify("Copied to clipboard", severity="warning")
 
@@ -166,11 +171,12 @@ class RunResult(TabbedContent):
         self.update_summary_tab(report)
         await self.push_passed_tests(report)
         await self.push_failed_tests(report)
+        await self.push_live_logs(report)  # Add this line
 
     def update_summary_tab(self, report: dict) -> None:
         self.get_tab(
             "summary"
-        ).label = f"[black on white] {report["meta"]["total"]} [/] tests"
+        ).label = f"[black on white] {report['meta']['total']} [/] tests"
         self.get_pane("summary").mount(SummaryStatsBar(lines=self.run_log.lines))
 
     async def push_failed_tests(self, report: dict) -> None:
@@ -188,7 +194,7 @@ class RunResult(TabbedContent):
             )
             entries.append(
                 Collapsible(
-                    FailedTestTraceback(content, nodeid=report["nodeid"]),
+                    TestOutputDisplay(content, nodeid=report["nodeid"]),
                     title=report["nodeid"],
                 )
             )
@@ -237,6 +243,32 @@ class RunResult(TabbedContent):
                 VerticalScroll(table),
             )
         )
+
+    async def push_live_logs(self, report: dict) -> None:
+        passed_reports: list[dict] = report["passed"]
+
+        logs_entries: list[Collapsible] = []
+        for test_report in passed_reports:
+            if test_report.get("longreprtext") or test_report.get("caplog"):
+                content = Syntax(
+                    test_report.get("longreprtext", "") + test_report.get("caplog", ""),
+                    "KernelLogLexer",
+                    theme="ansi_dark",
+                )
+                logs_entries.append(
+                    Collapsible(
+                        TestOutputDisplay(content, nodeid=test_report["nodeid"]),
+                        title=test_report["nodeid"],
+                    )
+                )
+
+        if logs_entries:
+            await self.add_pane(
+                TabPane(
+                    f"[black on blue] {len(logs_entries)} [/] live logs",
+                    VerticalScroll(*logs_entries),
+                )
+            )
 
 
 class RunContent(TabbedContent):

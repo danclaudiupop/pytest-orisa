@@ -128,7 +128,9 @@ def pytest_runtest_makereport(item: Item, call: CallInfo):
                             "lineno": "placeholder",
                         }
                         for argname, fixture in item._fixtureinfo.name2fixturedefs.items()
-                    ]
+                    ],
+                    "longreprtext": report.longreprtext,
+                    "caplog": report.caplog,
                 }
             )
 
@@ -204,7 +206,7 @@ def collect_tests() -> None:
         raise RuntimeError(f"An unexpected error occurred: {str(e)}") from e
 
 
-def run_node(node: dict | None, pytest_cmd_args: dict) -> subprocess.Popen[str]:
+def run_node(node: dict | None, pytest_cmd_args: list[str]) -> subprocess.Popen[str]:
     if node is not None:
         if node["type"] == "FUNCTION" and node["parent_type"] == "CLASS":
             path = f"{node['path']}::{node['parent_name']}::{node['name']}"
@@ -213,16 +215,7 @@ def run_node(node: dict | None, pytest_cmd_args: dict) -> subprocess.Popen[str]:
         else:
             path = node["path"]
 
-        args: list[str] = [path, "-s"]
-
-        if verbosity_level := pytest_cmd_args.get("verbosity"):
-            args.append(verbosity_level)
-
-        if traceback := pytest_cmd_args.get("traceback"):
-            args.append(traceback)
-
-        if show_locals := pytest_cmd_args.get("showlocals"):
-            args.append(show_locals)
+        args: list[str] = [path, *pytest_cmd_args]
 
     return subprocess.Popen(
         ["pytest", *args],
@@ -230,13 +223,3 @@ def run_node(node: dict | None, pytest_cmd_args: dict) -> subprocess.Popen[str]:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-
-
-# if __name__ == "__main__":
-#     pytest.main(
-#         [
-#             "-v",
-#             "--collect-only",
-#             "/Users/danclaudiupop/Projects/pytest_testing_project",
-#         ]
-#     )
