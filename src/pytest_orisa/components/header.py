@@ -1,14 +1,11 @@
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.dom import DOMNode
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input
-
-if TYPE_CHECKING:
-    pass
+from textual.widgets import Button, Input, Label
 
 
 class RunButton(Button):
@@ -22,9 +19,9 @@ class RunButton(Button):
         self.loading = False
 
 
-class PytestArgsModal(ModalScreen):
+class PytestCliFlagsModal(ModalScreen):
     DEFAULT_CSS = """
-        PytestArgsModal {
+        PytestCliFlagsModal {
             align: center middle;
 
             & .ignore-button {
@@ -72,7 +69,7 @@ class PytestArgsModal(ModalScreen):
                 dock: bottom;
             }
 
-            & #add-arg {
+            & #add-flag {
                 dock: left;
             }
 
@@ -86,14 +83,14 @@ class PytestArgsModal(ModalScreen):
         with Container():
             yield VerticalScroll(id="inputs-container")
             with Horizontal(id="button-container"):
-                yield Button("➕ Add", id="add-arg")
+                yield Button("➕ Add", id="add-flag")
                 yield Button("Done", id="done")
 
     def on_mount(self) -> None:
-        self.load_saved_args()
+        self.load_saved_flags()
 
-    def load_saved_args(self) -> None:
-        saved_args = getattr(self.app, "pytest_cmd_args", [])
+    def load_saved_flags(self) -> None:
+        saved_args = getattr(self.app, "pytest_cli_flags", [])
         inputs_container = self.query_one("#inputs-container")
         inputs_container.remove_children()  # Clear existing inputs
 
@@ -137,15 +134,15 @@ class PytestArgsModal(ModalScreen):
         if inputs:
             inputs.last().focus()
 
-    @on(Button.Pressed, "#add-arg")
+    @on(Button.Pressed, "#add-flag")
     def add_new_input(self) -> None:
         new_input = self.add_input()
         self.query_one("#inputs-container").mount(new_input)
         self.focus_last_input()
 
     @on(Button.Pressed, "#done")
-    def finish_editing(self) -> None:
-        self.save_pytest_args()
+    def done(self) -> None:
+        self.save_flags()
         self.dismiss()
 
     @on(Button.Pressed, ".remove-button")
@@ -167,14 +164,14 @@ class PytestArgsModal(ModalScreen):
                 button.add_class("ignore-active")
                 input_row.remove_class("ignored")
 
-    def save_pytest_args(self) -> None:
+    def save_flags(self) -> None:
         args = []
         for input_row in self.query(".input-row"):
             if "ignored" not in input_row.classes:
                 input_widget = input_row.query_one(Input)
                 if stripped_value := input_widget.value.strip():
                     args.append(stripped_value)
-        self.app.pytest_cmd_args = args  # type: ignore
+        self.app.pytest_cli_flags = args  # type: ignore
 
     def on_key(self, event) -> None:
         if event.key == "escape":
@@ -190,22 +187,22 @@ class AppHeader(Horizontal):
 
             & > Button {
                 margin-left: 1;
+                width: 16;
             }
 
-            & > #search-tests {
-                padding-left: 1;
+            & > #app-title {
+                padding-right: 1;
                 dock: right;
-                background: $primary;
             }
         }
     """
 
     def compose(self) -> ComposeResult:
-        # yield Label(f"PytestDva [dim]{'0.0.1'}[/]", id="app-title")
-        yield Button("🔍", id="search-tests")
         yield RunButton("▷  Run", id="run")
-        yield Button("☰ Options", id="options")
+        yield Button("🔍 Search", id="search-tests")
+        yield Button("☰ CLI Flags", id="cli-flags")
+        yield Label(f"Orisa [dim]{'0.0.1'}[/]", id="app-title")
 
-    @on(Button.Pressed, "#options")
-    def show_custom_args_modal(self) -> None:
-        self.app.push_screen(PytestArgsModal())
+    @on(Button.Pressed, "#cli-flags")
+    def show_pytest_cli_flags_modal(self) -> None:
+        self.app.push_screen(PytestCliFlagsModal())

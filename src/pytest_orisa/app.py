@@ -107,7 +107,7 @@ class OrisaApp(App):
         super().__init__()
         self.event_dispatcher = EventDispatcher()
         self.current_selected_node: dict = {}
-        self.pytest_cmd_args = []
+        self.pytest_cli_flags = []
 
     async def on_load(self) -> None:
         self.start_event_dispatcher()
@@ -213,7 +213,7 @@ class OrisaApp(App):
             self._run_node(
                 run_result,
                 button=cast(RunButton, event.button),
-                pytest_cmd_args=self.pytest_cmd_args,
+                pytest_cli_flags=self.pytest_cli_flags,
             ),
             exclusive=True,
             thread=True,
@@ -222,7 +222,7 @@ class OrisaApp(App):
         self.query(ContentTabs).last().focus()
 
     async def _run_node(
-        self, run_result: RunResult, button: RunButton, pytest_cmd_args: dict
+        self, run_result: RunResult, button: RunButton, pytest_cli_flags: list[str]
     ) -> None:
         current_running_node: dict = self.current_selected_node
 
@@ -231,7 +231,7 @@ class OrisaApp(App):
         ) as tree_label_updater:
             process: Popen[str] = run_node(
                 node=self.current_selected_node,
-                pytest_cmd_args=pytest_cmd_args,
+                pytest_cli_flags=pytest_cli_flags,
             )
             if process.stdout:
                 with process.stdout:
