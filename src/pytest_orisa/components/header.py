@@ -24,10 +24,6 @@ class PytestCliFlagsModal(ModalScreen):
         PytestCliFlagsModal {
             align: center middle;
 
-            & .ignore-button {
-                margin-left: 0;
-            }
-
             & .ignore-active {
                 color: green;
             }
@@ -50,12 +46,10 @@ class PytestCliFlagsModal(ModalScreen):
             }
 
             & .input-row {
-                width: 100%;
                 height: 1;
                 margin-bottom: 1;
 
-                & Input {
-                    width: 70%;
+                & > .ignore-button {
                     dock: left;
                 }
 
@@ -65,8 +59,9 @@ class PytestCliFlagsModal(ModalScreen):
             }
 
             & #button-container {
-                height: 1;
+                height: 2;
                 dock: bottom;
+                border-top: solid darkgrey 50%;
             }
 
             & #add-flag {
@@ -105,7 +100,7 @@ class PytestCliFlagsModal(ModalScreen):
         self.focus_last_input()
 
     def add_input(self, value: str = "") -> Horizontal:
-        input_id = f"custom-arg-input-{len(self.query('#inputs-container .input-row'))}"
+        input_id = f"flag-input-{len(self.query('#inputs-container .input-row'))}"
         input_widget = Input(
             value=value,
             placeholder="e.g., --foo=bar",
@@ -114,12 +109,11 @@ class PytestCliFlagsModal(ModalScreen):
         remove_button = Button(
             "🗑️",
             classes="remove-button",
-            tooltip="Remove this argument",
             id=f"{input_id}-remove",
         )
         ignore_button = Button(
             "◼",
-            tooltip="Ignore this argument",
+            tooltip="Disable this flag",
             classes="ignore-button ignore-active",
             id=f"{input_id}-ignore",
         )

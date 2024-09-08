@@ -84,7 +84,7 @@ Button {
   height: 1;
   border: none;
   text-style: bold;
-  min-width: 10;
+  min-width: 6;
 
   &:disabled {
     opacity: 99%;
