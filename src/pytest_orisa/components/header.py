@@ -163,14 +163,15 @@ class PytestCliFlagsModal(ModalScreen):
                 input_row.remove_class("ignored")
 
     def save_flags(self) -> None:
-        flags = []
+        flags = set()
         for input_row in self.inputs_container.query(".input-row"):
             input_widget = input_row.query_one(Input)
             ignore_button = input_row.query_one(".ignore-button")
             is_active = "ignore-active" in ignore_button.classes
             if stripped_value := input_widget.value.strip():
-                flags.append((stripped_value, is_active))
-        self.app.pytest_cli_flags = flags  # type: ignore
+                flags.add((stripped_value, is_active))
+
+        self.app.pytest_cli_flags = list(flags)  # type: ignore
 
     def on_key(self, event) -> None:
         if event.key == "escape":
@@ -198,8 +199,8 @@ class AppHeader(Horizontal):
 
     def compose(self) -> ComposeResult:
         yield RunButton("▷  Run", id="run")
-        yield Button("🔍 Search", id="search-tests")
-        yield Button("☰ CLI Flags", id="cli-flags")
+        yield Button("🔍  Search", id="search-tests")
+        yield Button("☰  CLI Flags", id="cli-flags")
         yield Label(f"Orisa [dim]{'0.0.1'}[/]", id="app-title")
 
     @on(Button.Pressed, "#cli-flags")

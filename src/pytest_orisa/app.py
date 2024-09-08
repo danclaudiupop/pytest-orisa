@@ -32,6 +32,7 @@ from textual.widgets import (
 from textual.widgets._tabbed_content import ContentTabs
 from textual.widgets.tree import TreeNode
 
+from pytest_orisa.cache import load_cache, write_cache
 from pytest_orisa.components.code import CodeViewerScreen
 from pytest_orisa.components.collection import TestsTree, TreeLabelUpdater
 from pytest_orisa.components.header import AppHeader, RunButton
@@ -112,6 +113,7 @@ class OrisaApp(App):
     async def on_load(self) -> None:
         self.start_event_dispatcher()
         await wait_for_server("localhost", 1337)
+        self.pytest_cli_flags = load_cache() or []
 
     @work(thread=True, exclusive=True)
     def start_event_dispatcher(self) -> None:
@@ -119,6 +121,7 @@ class OrisaApp(App):
 
     async def action_quit(self) -> None:
         self.event_dispatcher.stop()
+        write_cache(self.pytest_cli_flags)
         await super().action_quit()
 
     def action_open_search(self) -> None:
