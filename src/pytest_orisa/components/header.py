@@ -74,6 +74,10 @@ class PytestCliFlagsModal(ModalScreen):
         }
     """
 
+    @property
+    def inputs_container(self) -> VerticalScroll:
+        return self.query_one("#inputs-container", VerticalScroll)
+
     def compose(self) -> ComposeResult:
         with Container():
             yield VerticalScroll(id="inputs-container")
@@ -85,22 +89,21 @@ class PytestCliFlagsModal(ModalScreen):
         self.load_saved_flags()
 
     def load_saved_flags(self) -> None:
-        saved_args = getattr(self.app, "pytest_cli_flags", [])
-        inputs_container = self.query_one("#inputs-container")
-        inputs_container.remove_children()  # Clear existing inputs
+        saved_flags = getattr(self.app, "pytest_cli_flags", [])
+        self.inputs_container.remove_children()  # Clear existing inputs
 
-        if saved_args:
-            for arg in saved_args:
-                new_input = self.add_input(arg)
-                inputs_container.mount(new_input)
+        if saved_flags:
+            for flag, is_active in saved_flags:
+                new_input = self.add_input(flag, is_active)
+                self.inputs_container.mount(new_input)
         else:
             new_input = self.add_input()
-            inputs_container.mount(new_input)
+            self.inputs_container.mount(new_input)
 
         self.focus_last_input()
 
-    def add_input(self, value: str = "") -> Horizontal:
-        input_id = f"flag-input-{len(self.query('#inputs-container .input-row'))}"
+    def add_input(self, value: str = "", is_active: bool = True) -> Horizontal:
+        input_id = f"flag-input-{len(self.inputs_container.query('.input-row'))}"
         input_widget = Input(
             value=value,
             placeholder="e.g., --foo=bar",
@@ -114,7 +117,7 @@ class PytestCliFlagsModal(ModalScreen):
         ignore_button = Button(
             "◼",
             tooltip="Disable this flag",
-            classes="ignore-button ignore-active",
+            classes=f"ignore-button {'ignore-active' if is_active else 'ignore-inactive'}",
             id=f"{input_id}-ignore",
         )
 
@@ -129,9 +132,9 @@ class PytestCliFlagsModal(ModalScreen):
             inputs.last().focus()
 
     @on(Button.Pressed, "#add-flag")
-    def add_new_input(self) -> None:
+    async def add_new_input(self) -> None:
         new_input = self.add_input()
-        self.query_one("#inputs-container").mount(new_input)
+        await self.inputs_container.mount(new_input)
         self.focus_last_input()
 
     @on(Button.Pressed, "#done")
@@ -141,7 +144,8 @@ class PytestCliFlagsModal(ModalScreen):
 
     @on(Button.Pressed, ".remove-button")
     def remove_input(self, event: Button.Pressed) -> None:
-        cast(Horizontal, event.button.parent).remove()
+        if len(self.inputs_container.children) > 1:
+            cast(Horizontal, event.button.parent).remove()
 
     @on(Button.Pressed, ".ignore-button")
     def toggle_ignore(self, event: Button.Pressed) -> None:
@@ -159,13 +163,14 @@ class PytestCliFlagsModal(ModalScreen):
                 input_row.remove_class("ignored")
 
     def save_flags(self) -> None:
-        args = []
-        for input_row in self.query(".input-row"):
-            if "ignored" not in input_row.classes:
-                input_widget = input_row.query_one(Input)
-                if stripped_value := input_widget.value.strip():
-                    args.append(stripped_value)
-        self.app.pytest_cli_flags = args  # type: ignore
+        flags = []
+        for input_row in self.inputs_container.query(".input-row"):
+            input_widget = input_row.query_one(Input)
+            ignore_button = input_row.query_one(".ignore-button")
+            is_active = "ignore-active" in ignore_button.classes
+            if stripped_value := input_widget.value.strip():
+                flags.append((stripped_value, is_active))
+        self.app.pytest_cli_flags = flags  # type: ignore
 
     def on_key(self, event) -> None:
         if event.key == "escape":

@@ -206,7 +206,9 @@ def collect_tests() -> None:
         raise RuntimeError(f"An unexpected error occurred: {str(e)}") from e
 
 
-def run_node(node: dict | None, pytest_cli_flags: list[str]) -> subprocess.Popen[str]:
+def run_node(
+    node: dict | None, pytest_cli_flags: list[tuple[str, bool]]
+) -> subprocess.Popen[str]:
     if node is not None:
         if node["type"] == "FUNCTION" and node["parent_type"] == "CLASS":
             path = f"{node['path']}::{node['parent_name']}::{node['name']}"
@@ -215,7 +217,10 @@ def run_node(node: dict | None, pytest_cli_flags: list[str]) -> subprocess.Popen
         else:
             path = node["path"]
 
-        args: list[str] = [path, *pytest_cli_flags]
+        args: list[str] = [path]
+        for flag, is_active in pytest_cli_flags:
+            if is_active:
+                args.append(flag)
 
     return subprocess.Popen(
         ["pytest", *args],

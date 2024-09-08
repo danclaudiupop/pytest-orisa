@@ -107,7 +107,7 @@ class OrisaApp(App):
         super().__init__()
         self.event_dispatcher = EventDispatcher()
         self.current_selected_node: dict = {}
-        self.pytest_cli_flags = []
+        self.pytest_cli_flags: list[tuple[str, bool]] = []
 
     async def on_load(self) -> None:
         self.start_event_dispatcher()
@@ -222,7 +222,10 @@ class OrisaApp(App):
         self.query(ContentTabs).last().focus()
 
     async def _run_node(
-        self, run_result: RunResult, button: RunButton, pytest_cli_flags: list[str]
+        self,
+        run_result: RunResult,
+        button: RunButton,
+        pytest_cli_flags: list[tuple[str, bool]],
     ) -> None:
         current_running_node: dict = self.current_selected_node
 
