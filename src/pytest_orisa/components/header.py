@@ -116,7 +116,7 @@ class PytestCliFlagsModal(ModalScreen):
         )
         ignore_button = Button(
             "◼",
-            tooltip="Disable this flag",
+            tooltip="Disable this flag" if is_active else "Enable this flag",
             classes=f"ignore-button {'ignore-active' if is_active else 'ignore-inactive'}",
             id=f"{input_id}-ignore",
         )
@@ -157,10 +157,12 @@ class PytestCliFlagsModal(ModalScreen):
                 button.remove_class("ignore-active")
                 button.add_class("ignore-inactive")
                 input_row.add_class("ignored")
+                button.tooltip = "Enable this flag"
             else:
                 button.remove_class("ignore-inactive")
                 button.add_class("ignore-active")
                 input_row.remove_class("ignored")
+                button.tooltip = "Disable this flag"
 
     def save_flags(self) -> None:
         flags = set()
