@@ -82,9 +82,9 @@ class TestOutputDisplay(Label):
         self.app.select_node(self.app.get_tree_node_by_pytest_nodeid(self.nodeid))
 
 
-class SummaryStatsBar(Grid):
+class TestSessionStatusBar(Grid):
     DEFAULT_CSS = """
-        SummaryStatsBar {
+        TestSessionStatusBar {
             height: 1;
             background: $panel;
             dock: bottom;
@@ -95,9 +95,9 @@ class SummaryStatsBar(Grid):
                 color: $text-muted;
             }
 
-            & > #copy-to-clipboard {
+            & > #action-button {
                 dock: right;
-                background: darkgrey;
+                background: yellow;
             }
         }
     """
@@ -105,15 +105,29 @@ class SummaryStatsBar(Grid):
     def __init__(self, lines: Sequence[str]) -> None:
         super().__init__()
         self.lines = lines
+        self.test_session_is_running = True
 
     def compose(self) -> ComposeResult:
         yield Label(
-            f" Test run at {datetime.now().strftime("%m/%d/%Y, %I:%M:%S %p")}",
+            f" Test run at {datetime.now().strftime('%m/%d/%Y, %I:%M:%S %p')}",
             id="run-at",
         )
-        yield Button("✂ Copy output", id="copy-to-clipboard")
+        yield Button("Cancel", id="action-button")
 
-    @on(Button.Pressed, selector="#copy-to-clipboard")
+    def test_session_finished(self) -> None:
+        self.test_session_is_running = False
+        button = self.query_one("#action-button", Button)
+        button.label = "✂ Copy output"
+        button.styles.background = "darkgrey"
+
+    @on(Button.Pressed, selector="#action-button")
+    def handle_button_press(self) -> None:
+        if self.test_session_is_running:
+            print("cancelling")
+            self.app.action_cancel_test_run()
+        else:
+            self.copy_test_output()
+
     def copy_test_output(self) -> None:
         self.app.copy_to_clipboard("\n".join(self.lines))
         self.app.notify("Copied to clipboard", severity="warning")
@@ -164,20 +178,21 @@ class RunResult(TabbedContent):
 
     async def on_mount(self) -> None:
         await self.add_pane(TabPane("running", self.run_log, id="summary"))
+        self.get_pane("summary").mount(TestSessionStatusBar(lines=self.run_log.lines))
         self.add_class("-running")
 
     async def watch_report(self, report: dict) -> None:
         self.remove_class("-running")
         self.update_summary_tab(report)
+        self.query_one(TestSessionStatusBar).test_session_finished()
         await self.push_passed_tests(report)
         await self.push_failed_tests(report)
-        await self.push_live_logs(report)  # Add this line
+        await self.push_live_logs(report)
 
     def update_summary_tab(self, report: dict) -> None:
         self.get_tab(
             "summary"
         ).label = f"[black on white] {report['meta']['total']} [/] tests"
-        self.get_pane("summary").mount(SummaryStatsBar(lines=self.run_log.lines))
 
     async def push_failed_tests(self, report: dict) -> None:
         failed_reports: list[dict] = report["failed"]

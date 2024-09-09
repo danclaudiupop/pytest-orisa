@@ -94,10 +94,6 @@ Button {
       border: none;
       background: $primary;
   }
-  & > LoadingIndicator {
-    color: $primary;
-    width: auto;
-  }
 }
 
 

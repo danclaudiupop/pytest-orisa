@@ -9,6 +9,19 @@ from textual.widgets import Button, Input, Label
 
 
 class RunButton(Button):
+    DEFAULT_CSS = """
+        RunButton > LoadingIndicator {
+            color: $primary;
+            width: 100%;
+            content-align: center middle;
+        }
+
+        RunButton > LoadingIndicator.-textual-loading-indicator {
+            background: transparent;
+        }
+
+    """
+
     def on_click(self) -> None:
         self.disabled = True
         self.loading = True
@@ -50,6 +63,7 @@ class PytestCliFlagsModal(ModalScreen):
                 margin-bottom: 1;
 
                 & > .ignore-button {
+                    background: transparent;
                     dock: left;
                 }
 
