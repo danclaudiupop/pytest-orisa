@@ -1,7 +1,6 @@
 from datetime import datetime
 from typing import Sequence
 
-from pytest import ExitCode
 from rich.syntax import Syntax
 from textual import on
 from textual.app import ComposeResult
@@ -297,13 +296,13 @@ class RunContent(TabbedContent):
         }
     """
 
-    exit_status: Reactive[int] = reactive(0, always_update=True)
+    tab_color: Reactive[str] = reactive("cyan", always_update=True)
     latest_active: var[str | None] = var(None, init=False)
 
-    def watch_exit_status(self, exit_status: ExitCode) -> None:
+    def watch_tab_color(self, tab_color: str) -> None:
         if self.latest_active:
             tab = self.get_tab(self.latest_active)
-            tab.styles.background = "cyan" if exit_status == 0 else "crimson"
+            tab.styles.background = tab_color
             tab.styles.animate("opacity", value=0.95, duration=0.9)
 
     async def push_new_pane(self, run_result: RunResult) -> None:

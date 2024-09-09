@@ -21,7 +21,6 @@ from textual.containers import (
     Vertical,
 )
 from textual.fuzzy import Matcher
-from textual.notifications import SeverityLevel
 from textual.reactive import Reactive, var
 from textual.widgets import (
     Button,
@@ -245,56 +244,38 @@ class OrisaApp(App):
                         run_result.run_log.write_line(line)
             process.wait()
 
-            if process.returncode != 0 and process.stderr:
+            if process.returncode != ExitCode.OK and process.stderr:
                 with process.stderr:
                     for line in iter(process.stderr.readline, ""):
                         run_result.run_log.write_line(line)
 
-            report: dict = self.event_dispatcher.get_event_data("report")
-            run_result.report = report
-
-            exit_status: ExitCode = report["meta"]["exit_status"]
-            tree_label_updater.exit_status = exit_status
-            tree_label_updater.report = report
-            self.run_content.exit_status = exit_status
-            self.push_run_notification(exit_status, current_running_node)
             button.reset()
 
-    def push_run_notification(
-        self, exit_status: ExitCode, current_running_node: dict
-    ) -> None:
-        possible_outcomes: dict = {
-            ExitCode.OK: {
-                "message": f"[cyan]PASSED[/] {current_running_node['name']}",
-                "severity": "information",
-            },
-            ExitCode.TESTS_FAILED: {
-                "message": f"[crimson]FAILED[/] {current_running_node['name']}",
-                "severity": "error",
-            },
-            ExitCode.INTERRUPTED: {
-                "message": f"[crimson]INTERRUPTED[/] {current_running_node['name']}",
-                "severity": "error",
-            },
-            ExitCode.INTERNAL_ERROR: {
-                "message": f"[crimson]INTERNAL ERROR[/] {current_running_node['name']}",
-                "severity": "error",
-            },
-            ExitCode.USAGE_ERROR: {
-                "message": f"[crimson]USAGE ERROR[/] {current_running_node['name']}",
-                "severity": "error",
-            },
-            ExitCode.NO_TESTS_COLLECTED: {
-                "message": f"[crimson]NO TESTS COLLECTED[/] {current_running_node['name']}",
-                "severity": "error",
-            },
-        }
+            if process.returncode == ExitCode.USAGE_ERROR:
+                self.run_content.tab_color = "darkgrey"
+                tree_label_updater.mark_error_state()
+                self.app.notify(message="Usage error", severity="error", timeout=2)
 
-        outcome: dict[str, SeverityLevel] = possible_outcomes[exit_status]
+            if process.returncode in (ExitCode.OK, ExitCode.TESTS_FAILED):
+                report: dict = self.event_dispatcher.get_event_data("report")
+                run_result.report = report
+                tree_label_updater.report = report
 
-        self.app.notify(
-            message=outcome["message"], severity=outcome["severity"], timeout=2
-        )
+                if process.returncode == ExitCode.OK:
+                    status = "PASSED"
+                    color = "cyan"
+                    severity = "information"
+                else:
+                    status = "FAILED"
+                    color = "crimson"
+                    severity = "error"
+
+                self.run_content.tab_color = color
+                self.app.notify(
+                    message=f"[{color}]{status}[/] {current_running_node['name']}",
+                    severity=severity,
+                    timeout=2,
+                )
 
     def build_breadcrumb_from_path(self) -> str:
         start_root = (

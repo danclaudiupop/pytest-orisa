@@ -159,29 +159,38 @@ class TreeLabelUpdater:
         self.tests_tree: "TestsTree" = tests_tree
         self.current_running_node: dict = current_running_node
         self.node: TreeNode | None = None
-        self.exit_status: int | None = None
         self.report: dict | None = None
+        self.error_occurred: bool = False
 
     def __enter__(self) -> "TreeLabelUpdater":
-        self.node = self._find_and_update_node("[yellow]⧗[/] ")
+        # Don't update nodes here, just find the node
+        self.node = self.find_node()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
-        if self.exit_status is not None and self.report is not None:
+        if not self.error_occurred and self.node:
+            self.update_node("[yellow]⧗[/] ")  # Update node only if no error occurred
+        if self.report is not None and not self.error_occurred:
             self._update_final_labels()
 
-    def _find_and_update_node(self, status: str) -> TreeNode | None:
+    def mark_error_state(self) -> None:
+        self.error_occurred = True
+
+    def find_node(self) -> TreeNode | None:
         for node in self.tests_tree.tree_nodes.values():
             if (
                 node.data
                 and isinstance(node.data, dict)
                 and node.data.get("nodeid") == self.current_running_node.get("nodeid")
             ):
-                self._update_node_and_children(node, status, intermediate=True)
                 return node
         return None
 
-    def _update_node_and_children(
+    def update_node(self, status: str) -> None:
+        if self.node:
+            self.update_node_and_children(self.node, status, intermediate=True)
+
+    def update_node_and_children(
         self,
         node: TreeNode,
         status: str,
@@ -193,24 +202,24 @@ class TreeLabelUpdater:
         else:
             outcome = results.get(node.data.get("nodeid")) if results else None
             if outcome:
-                status = self._get_status_icon(outcome)
+                status = self.get_status_icon(outcome)
                 node.label = f"{node.data['name']} {status}"
             else:
                 node.label = node.data["name"]
 
         for child in node.children:
-            self._update_node_and_children(child, status, intermediate, results)
+            self.update_node_and_children(child, status, intermediate, results)
 
     def _update_final_labels(self) -> None:
         if not self.node:
             return
 
-        results = self._extract_results_from_report()
-        self._update_node_and_children(
+        results = self.extract_results_from_report()
+        self.update_node_and_children(
             self.node, status="", intermediate=False, results=results
         )
 
-    def _extract_results_from_report(self) -> dict:
+    def extract_results_from_report(self) -> dict:
         results: dict = {}
         for outcome in ["passed", "failed", "skipped", "xfailed"]:
             for test in self.report.get(outcome, []) if self.report else []:
@@ -218,7 +227,7 @@ class TreeLabelUpdater:
         return results
 
     @staticmethod
-    def _get_status_icon(outcome: str) -> str:
+    def get_status_icon(outcome: str) -> str:
         icons: dict[str, str] = {
             "passed": "[green]●[/] ",
             "failed": "[red]✖[/] ",
