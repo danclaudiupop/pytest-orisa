@@ -5,6 +5,7 @@ from rich.syntax import Syntax
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Grid, VerticalScroll
+from textual.message import Message
 from textual.reactive import Reactive, reactive, var
 from textual.widgets import (
     Button,
@@ -101,6 +102,9 @@ class TestSessionStatusBar(Grid):
         }
     """
 
+    class CancelTestRun(Message):
+        """A message to request cancellation of the current test run."""
+
     def __init__(self, lines: Sequence[str]) -> None:
         super().__init__()
         self.lines = lines
@@ -113,17 +117,25 @@ class TestSessionStatusBar(Grid):
         )
         yield Button("Cancel", id="action-button")
 
+    @property
+    def action_button(self) -> Button:
+        return self.query_one("#action-button", Button)
+
     def test_session_finished(self) -> None:
         self.test_session_is_running = False
-        button = self.query_one("#action-button", Button)
-        button.label = "✂ Copy output"
-        button.styles.background = "darkgrey"
+        self.action_button.label = "✂ Copy output"
+        self.action_button.styles.background = "darkgrey"
 
     @on(Button.Pressed, selector="#action-button")
     def handle_button_press(self) -> None:
         if self.test_session_is_running:
-            print("cancelling")
-            self.app.action_cancel_test_run()
+            self.post_message(self.CancelTestRun())
+            self.action_button.styles.background = "grey"
+            self.action_button.disabled = True
+            self.action_button.label = "Canceled"
+            self.app.notify(
+                "Triggered cancellation of test run", severity="information", timeout=1
+            )
         else:
             self.copy_test_output()
 

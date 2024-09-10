@@ -30,12 +30,13 @@ from textual.widgets import (
 )
 from textual.widgets._tabbed_content import ContentTabs
 from textual.widgets.tree import TreeNode
+from textual.worker import Worker, get_current_worker
 
 from pytest_orisa.cache import load_cache, write_cache
 from pytest_orisa.components.code import CodeViewerScreen
 from pytest_orisa.components.collection import TestsTree, TreeLabelUpdater
 from pytest_orisa.components.header import AppHeader, RunButton
-from pytest_orisa.components.result import RunContent, RunResult
+from pytest_orisa.components.result import RunContent, RunResult, TestSessionStatusBar
 from pytest_orisa.event_dispatcher import (
     EventDispatcher,
     wait_for_server,
@@ -108,6 +109,7 @@ class OrisaApp(App):
         self.event_dispatcher = EventDispatcher()
         self.current_selected_node: dict = {}
         self.pytest_cli_flags: list[tuple[str, bool]] = []
+        self.current_run_worker: Worker | None = None
 
     async def on_load(self) -> None:
         self.start_event_dispatcher()
@@ -206,13 +208,18 @@ class OrisaApp(App):
     def on_node_highlight(self, event: Tree.NodeHighlighted) -> None:
         self.tests_tree.node_preview.node_data = event.node.data
 
+    @on(TestSessionStatusBar.CancelTestRun)
+    def handle_cancel_test_run(self) -> None:
+        if self.current_run_worker:
+            self.current_run_worker.cancel()
+
     @on(RunButton.Pressed, selector="#run")
     async def on_run_triggered(self, event: RunButton.Pressed) -> None:
         run_result = RunResult()
         await self.run_content.push_new_pane(run_result)
 
         self.run_worker(
-            self._run_node(
+            self.run_node(
                 run_result,
                 button=cast(RunButton, event.button),
                 pytest_cli_flags=self.pytest_cli_flags,
@@ -223,13 +230,15 @@ class OrisaApp(App):
 
         self.query(ContentTabs).last().focus()
 
-    async def _run_node(
+    async def run_node(
         self,
         run_result: RunResult,
         button: RunButton,
         pytest_cli_flags: list[tuple[str, bool]],
     ) -> None:
         current_running_node: dict = self.current_selected_node
+        run_worker = get_current_worker()
+        self.current_run_worker = run_worker
 
         with TreeLabelUpdater(
             self.tests_tree, current_running_node
@@ -241,6 +250,17 @@ class OrisaApp(App):
             if process.stdout:
                 with process.stdout:
                     for line in iter(process.stdout.readline, ""):
+                        if run_worker.is_cancelled:
+                            process.terminate()
+                            run_result.run_log.write_lines(
+                                [
+                                    "".join(["-" * 80, "\n"]),
+                                    "Run cancelled \n",
+                                    "The test execution was interrupted.\n",
+                                    "".join(["-" * 80]),
+                                ]
+                            )
+                            break
                         run_result.run_log.write_line(line)
             process.wait()
 
@@ -251,31 +271,58 @@ class OrisaApp(App):
 
             button.reset()
 
-            if process.returncode == ExitCode.USAGE_ERROR:
-                self.run_content.tab_color = "darkgrey"
-                tree_label_updater.mark_error_state()
-                self.app.notify(message="Usage error", severity="error", timeout=2)
+            self.handle_process_result(
+                process.returncode, run_result, tree_label_updater, current_running_node
+            )
 
-            if process.returncode in (ExitCode.OK, ExitCode.TESTS_FAILED):
-                report: dict = self.event_dispatcher.get_event_data("report")
-                run_result.report = report
-                tree_label_updater.report = report
+    def handle_process_result(
+        self,
+        returncode: int,
+        run_result: RunResult,
+        tree_label_updater: TreeLabelUpdater,
+        current_running_node: dict,
+    ) -> None:
+        if returncode == ExitCode.USAGE_ERROR:
+            self.handle_usage_error(tree_label_updater)
+        elif returncode == -15:
+            self.handle_cancelled_run(tree_label_updater)
+        elif returncode in (ExitCode.OK, ExitCode.TESTS_FAILED):
+            self.handle_test_result(
+                returncode, run_result, tree_label_updater, current_running_node
+            )
 
-                if process.returncode == ExitCode.OK:
-                    status = "PASSED"
-                    color = "cyan"
-                    severity = "information"
-                else:
-                    status = "FAILED"
-                    color = "crimson"
-                    severity = "error"
+    def handle_usage_error(self, tree_label_updater: TreeLabelUpdater) -> None:
+        self.run_content.tab_color = "darkgrey"
+        tree_label_updater.mark_error_state()
+        self.app.notify(message="Usage error", severity="error", timeout=2)
 
-                self.run_content.tab_color = color
-                self.app.notify(
-                    message=f"[{color}]{status}[/] {current_running_node['name']}",
-                    severity=severity,
-                    timeout=2,
-                )
+    def handle_cancelled_run(self, tree_label_updater: TreeLabelUpdater) -> None:
+        self.run_content.tab_color = "darkgrey"
+        tree_label_updater.mark_error_state()
+        self.app.notify(message="Run cancelled", severity="error", timeout=2)
+
+    def handle_test_result(
+        self,
+        returncode: int,
+        run_result: RunResult,
+        tree_label_updater: TreeLabelUpdater,
+        current_running_node: dict,
+    ) -> None:
+        report: dict = self.event_dispatcher.get_event_data("report")
+        run_result.report = report
+        tree_label_updater.report = report
+
+        if returncode == ExitCode.OK:
+            status, color, severity = "PASSED", "cyan", "information"
+        else:
+            status, color, severity = "FAILED", "crimson", "error"
+
+        self.run_content.tab_color = color
+        self.app.notify(
+            message=f"[{color}]{status}[/] {current_running_node['name']}",
+            severity=severity,
+            timeout=2,
+        )
 
     def build_breadcrumb_from_path(self) -> str:
         start_root = (
