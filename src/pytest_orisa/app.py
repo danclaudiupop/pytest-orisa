@@ -36,7 +36,12 @@ from pytest_orisa.cache import load_cache, write_cache
 from pytest_orisa.components.code import CodeViewerScreen
 from pytest_orisa.components.collection import TestsTree, TreeLabelUpdater
 from pytest_orisa.components.header import AppHeader, RunButton
-from pytest_orisa.components.result import RunContent, RunResult, TestSessionStatusBar
+from pytest_orisa.components.result import (
+    GoToTest,
+    RunContent,
+    RunResult,
+    TestSessionStatusBar,
+)
 from pytest_orisa.event_dispatcher import (
     EventDispatcher,
     wait_for_server,
@@ -171,6 +176,22 @@ class OrisaApp(App):
         if self.use_command_palette and not CommandPalette.is_open(self):
             self.push_screen(SearchCommandPalette())
 
+    def get_tree_node_by_pytest_nodeid(self, nodeid: str) -> TreeNode | None:
+        return next(
+            (
+                node
+                for node in self.tests_tree.tree_nodes.values()
+                if node.data
+                and isinstance(node.data, dict)
+                and node.data["nodeid"] == nodeid
+            ),
+            None,
+        )
+
+    def select_node(self, node: TreeNode) -> None:
+        self.tests_tree.scroll_to_node(node)
+        self.tests_tree.select_node(node)
+
     @on(Button.Pressed, selector="#search-tests")
     def on_search(self) -> None:
         self.open_search()
@@ -185,15 +206,11 @@ class OrisaApp(App):
             ),
         )
 
-    def get_tree_node_by_pytest_nodeid(self, nodeid: str) -> TreeNode | None:
-        for node in self.tests_tree.tree_nodes.values():
-            if node.data and isinstance(node.data, dict):
-                if node.data["nodeid"] == nodeid:
-                    return node
-
-    def select_node(self, node: TreeNode) -> None:
-        self.tests_tree.scroll_to_node(node)
-        self.tests_tree.select_node(node)
+    @on(GoToTest)
+    def on_result_select_node(self, message: GoToTest) -> None:
+        node = self.get_tree_node_by_pytest_nodeid(message.nodeid)
+        if node:
+            self.select_node(node)
 
     @on(Tree.NodeSelected)
     def on_node_select(self, event: Tree.NodeSelected) -> None:
@@ -221,7 +238,7 @@ class OrisaApp(App):
         self.run_worker(
             self.run_node(
                 run_result,
-                button=cast(RunButton, event.button),
+                run_button=cast(RunButton, event.button),
                 pytest_cli_flags=self.pytest_cli_flags,
             ),
             exclusive=True,
@@ -233,10 +250,10 @@ class OrisaApp(App):
     async def run_node(
         self,
         run_result: RunResult,
-        button: RunButton,
+        run_button: RunButton,
         pytest_cli_flags: list[tuple[str, bool]],
     ) -> None:
-        current_running_node: dict = self.current_selected_node
+        current_running_node = self.current_selected_node
         run_worker = get_current_worker()
         self.current_run_worker = run_worker
 
@@ -269,7 +286,7 @@ class OrisaApp(App):
                     for line in iter(process.stderr.readline, ""):
                         run_result.run_log.write_line(line)
 
-            button.reset()
+            run_button.reset()
 
             self.handle_process_result(
                 process.returncode, run_result, tree_label_updater, current_running_node
@@ -308,7 +325,7 @@ class OrisaApp(App):
         tree_label_updater: TreeLabelUpdater,
         current_running_node: dict,
     ) -> None:
-        report: dict = self.event_dispatcher.get_event_data("report")
+        report = self.event_dispatcher.get_event_data("report")
         run_result.report = report
         tree_label_updater.report = report
 

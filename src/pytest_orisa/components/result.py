@@ -18,6 +18,14 @@ from textual.widgets import (
 )
 
 
+class GoToTest(Message):
+    """A message to navigate to a specific test"""
+
+    def __init__(self, nodeid: str) -> None:
+        self.nodeid = nodeid
+        super().__init__()
+
+
 class PassedTestDataTable(DataTable):
     DEFAULT_CSS = """
         PassedTestDataTable {
@@ -29,7 +37,7 @@ class PassedTestDataTable(DataTable):
     def go_to_test(self, event: DataTable.RowSelected) -> None:
         row_index: int = event.cursor_row
         nodeid: str = event.data_table.get_row_at(row_index)[0]
-        self.app.select_node(self.app.get_tree_node_by_pytest_nodeid(nodeid))
+        self.post_message(GoToTest(nodeid))
 
 
 class TestOutputDisplay(Label):
@@ -79,7 +87,7 @@ class TestOutputDisplay(Label):
 
     @on(Button.Pressed, selector="#go-to-test")
     def go_to_test(self) -> None:
-        self.app.select_node(self.app.get_tree_node_by_pytest_nodeid(self.nodeid))
+        self.post_message(GoToTest(self.nodeid))
 
 
 class TestSessionStatusBar(Grid):
