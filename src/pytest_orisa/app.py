@@ -311,6 +311,7 @@ class OrisaApp(App):
     def handle_usage_error(self, tree_label_updater: TreeLabelUpdater) -> None:
         self.run_content.tab_color = "darkgrey"
         tree_label_updater.mark_error_state()
+        self.query(TestSessionStatusBar).last().display = False
         self.app.notify(message="Usage error", severity="error", timeout=2)
 
     def handle_cancelled_run(self, tree_label_updater: TreeLabelUpdater) -> None:
