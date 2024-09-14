@@ -309,7 +309,7 @@ class RunContent(TabbedContent):
     DEFAULT_CSS = """
         RunContent {
             background: $background;
-            border: grey;
+            border: solid grey;
             border-title-align: left;
             height: 100%;
             padding-top: 1;

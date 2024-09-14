@@ -24,7 +24,6 @@ from textual.fuzzy import Matcher
 from textual.reactive import Reactive, var
 from textual.widgets import (
     Button,
-    Footer,
     LoadingIndicator,
     Tree,
 )
@@ -35,13 +34,15 @@ from textual.worker import Worker, get_current_worker
 from pytest_orisa.cache import load_cache, write_cache
 from pytest_orisa.components.code import CodeViewerScreen
 from pytest_orisa.components.collection import TestsTree, TreeLabelUpdater
-from pytest_orisa.components.header import AppHeader, RunButton
+from pytest_orisa.components.flags import PytestCliFlagsModal
+from pytest_orisa.components.footer import OrisaFooter
 from pytest_orisa.components.result import (
     GoToTest,
     RunContent,
     RunResult,
     TestSessionStatusBar,
 )
+from pytest_orisa.components.runbar import NodePreview, RunBar, RunButton
 from pytest_orisa.event_dispatcher import (
     EventDispatcher,
     wait_for_server,
@@ -103,8 +104,9 @@ class OrisaApp(App):
     BINDINGS: list[Binding] = [
         Binding("ctrl+q", "quit", "Quit", priority=True),
         Binding("ctrl+f", "open_search", "Search", priority=True),
-        Binding("ctrl+x", "clear_all_runs", "Clear all runs", priority=True),
+        Binding("ctrl+x", "clear_all_runs", "Clear runs", priority=True),
         Binding("ctrl+e", "toggle_sidebar", "Toggle tests", priority=True),
+        Binding("ctrl+i", "open_cli_flags", "CLI flags", priority=True),
     ]
 
     show_sidebar: Reactive[bool] = var(True)
@@ -133,6 +135,11 @@ class OrisaApp(App):
     def action_open_search(self) -> None:
         self.open_search()
 
+    def action_open_cli_flags(self) -> None:
+        if not any(isinstance(screen, PytestCliFlagsModal) for screen in self._screen_stack):
+            modal = PytestCliFlagsModal()
+            self.push_screen(modal)
+
     def action_toggle_sidebar(self) -> None:
         self.show_sidebar = not self.show_sidebar
 
@@ -159,18 +166,16 @@ class OrisaApp(App):
         self.set_class(show_sidebar, "-show-tree")
 
     def compose(self) -> ComposeResult:
-        yield AppHeader()
-
+        yield RunBar()
         with Horizontal():
             self.tests_tree = TestsTree("Tests", id="tree-view")
             yield self.tests_tree
 
-            with Vertical():
-                self.run_content = RunContent()
-                self.run_content.border_title = "Test Results"
-                yield self.run_content
+            self.run_content = RunContent()
+            self.run_content.border_title = "Test Results"
+            yield self.run_content
 
-        yield Footer()
+        yield OrisaFooter()
 
     def open_search(self) -> None:
         if self.use_command_palette and not CommandPalette.is_open(self):
@@ -221,9 +226,7 @@ class OrisaApp(App):
             width_value = self.run_content.size.width - 10
             os.environ["ORISA_RUN_LOG_WIDTH"] = str(width_value)
 
-    @on(Tree.NodeHighlighted)
-    def on_node_highlight(self, event: Tree.NodeHighlighted) -> None:
-        self.tests_tree.node_preview.node_data = event.node.data
+        self.query_one(NodePreview).node_data = event.node.data
 
     @on(TestSessionStatusBar.CancelTestRun)
     def handle_cancel_test_run(self) -> None:
@@ -366,7 +369,8 @@ class OrisaApp(App):
                 and self.current_selected_node["parent_type"] == "CLASS"
             ):
                 return f"{breadcrumb} > {self.current_selected_node['parent_name']} > {node_name}"
-            return f"{breadcrumb} > {node_name}"
+            elif self.current_selected_node["type"] != "MODULE":
+                return f"{breadcrumb} > {node_name}"
 
         return breadcrumb
 

@@ -1,53 +1,15 @@
 from typing import TYPE_CHECKING, cast
 
 from textual import on
-from textual.app import ComposeResult
-from textual.containers import Horizontal
 from textual.message import Message
-from textual.reactive import reactive, var
-from textual.widgets import Button, Static, Tree
+from textual.reactive import var
+from textual.widgets import Tree
 from textual.widgets.tree import NodeID, TreeNode
 
 from pytest_orisa.plugin import collect_tests
 
 if TYPE_CHECKING:
     from pytest_orisa.app import OrisaApp
-
-
-class NodePreview(Horizontal):
-    DEFAULT_CSS = """
-        NodePreview {
-            color: $text-muted;
-            background: transparent;
-            dock: bottom;
-            height: auto;
-            width: 100%;
-            border-top: solid grey 50%;
-
-            & > #show-code {
-                dock: right;
-            }
-             
-        }
-    """
-
-    node_data = reactive(None)
-
-    def compose(self) -> ComposeResult:
-        self.can_focus = False
-        yield Static("", id="preview")
-        yield Button("</> Show code", id="show-code")
-        self.display = False
-
-    def watch_node_data(self, node_data) -> None:
-        preview: Static = self.query_one("#preview", Static)
-        show_code: Button = self.query_one("#show-code", Button)
-        if node_data:
-            node_type = node_data["type"]
-
-            self.display = True
-            preview.update(node_type.lower())
-            show_code.display = node_type != "DIR"
 
 
 class TestsTree(Tree):
@@ -94,11 +56,6 @@ class TestsTree(Tree):
             super().__init__()
             self.data: dict = data
 
-    def compose(self):
-        super().compose()
-        self.node_preview = NodePreview()
-        yield self.node_preview
-
     def on_mount(self) -> None:
         self.orisa.event_dispatcher.register_handler(
             event_type="tests_collected",
@@ -117,7 +74,7 @@ class TestsTree(Tree):
             )
             self.loading = False
             self.border_title = (
-                f"Tests [black on cyan ] {tests_collected['meta']['total']} [/]"
+                f"Tests [black on white ] {tests_collected['meta']['total']} [/]"
             )
 
     async def update_tree(

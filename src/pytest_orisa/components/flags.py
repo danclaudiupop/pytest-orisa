@@ -8,29 +8,6 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label
 
 
-class RunButton(Button):
-    DEFAULT_CSS = """
-        RunButton > LoadingIndicator {
-            color: $primary;
-            width: 100%;
-            content-align: center middle;
-        }
-
-        RunButton > LoadingIndicator.-textual-loading-indicator {
-            background: transparent;
-        }
-
-    """
-
-    def on_click(self) -> None:
-        self.disabled = True
-        self.loading = True
-        self.post_message(self.Pressed(self))
-
-    def reset(self) -> None:
-        self.disabled = False
-        self.loading = False
-
 
 class PytestCliFlagsModal(ModalScreen):
     DEFAULT_CSS = """
@@ -192,33 +169,3 @@ class PytestCliFlagsModal(ModalScreen):
     def on_key(self, event) -> None:
         if event.key == "escape":
             self.dismiss()
-
-
-class AppHeader(Horizontal):
-    DEFAULT_CSS = """
-        AppHeader {
-            height: 3;
-            background: $background;
-            border: grey 50%;
-
-            & > Button {
-                margin-left: 1;
-                width: 16;
-            }
-
-            & > #app-title {
-                padding-right: 1;
-                dock: right;
-            }
-        }
-    """
-
-    def compose(self) -> ComposeResult:
-        yield RunButton("▷  Run", id="run")
-        yield Button("🔍  Search", id="search-tests")
-        yield Button("☰  CLI Flags", id="cli-flags")
-        yield Label(f"Orisa [dim]{'0.0.1'}[/]", id="app-title")
-
-    @on(Button.Pressed, "#cli-flags")
-    def show_pytest_cli_flags_modal(self) -> None:
-        self.app.push_screen(PytestCliFlagsModal())

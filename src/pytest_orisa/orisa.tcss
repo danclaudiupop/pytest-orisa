@@ -14,7 +14,7 @@ $secondary: darkgrey;
 
 RunContent:focus-within,
 #tree-view:focus-within {
-  border: $primary;
+  border: solid $primary;
 }
 
 .-show-tree #tree-view {
@@ -50,13 +50,11 @@ Toast {
   color: $text;
   border-right: none;
   border-left: wide $primary;
-  padding: 1 2;
-  margin: 0 0 1 0;
-  offset-y: 1;
 }
 
 ToastRack {
   align: right top;
+  margin-top: 2;
 }
 
 Toast.-information {
