@@ -6,16 +6,20 @@ from textual.widgets import Button, Static
 
 class RunButton(Button):
     DEFAULT_CSS = """
-        RunButton > LoadingIndicator {
-            color: $primary;
-            width: 100%;
-            content-align: center middle;
-        }
+        RunButton {
+            width: 15;
+            background: $primary;
 
-        RunButton > LoadingIndicator.-textual-loading-indicator {
-            background: transparent;
-        }
+            & > LoadingIndicator {
+                color: black;
+                width: 100%;
+                content-align: center middle;
+            }
 
+            & > LoadingIndicator.-textual-loading-indicator {
+                background: transparent;
+            }
+        }
     """
 
     def on_click(self) -> None:
@@ -33,16 +37,12 @@ class NodePreview(Container):
         NodePreview {
             color: $text-muted;
             background: $surface;
+            margin: 0 1;
 
             & > #show-code {
                 dock: right;
-                margin-right: 1;
             }
 
-            #preview {
-                margin-left: 1;
-            }
-             
         }
     """
 
@@ -54,14 +54,14 @@ class NodePreview(Container):
         yield Button("</> Show code", id="show-code")
         self.display = False
 
-    def watch_node_data(self, node_data) -> None:
-        preview: Static = self.query_one("#preview", Static)
-        show_code: Button = self.query_one("#show-code", Button)
+    def watch_node_data(self, node_data: dict) -> None:
         if node_data:
+            preview: Static = self.query_one("#preview", Static)
+            show_code: Button = self.query_one("#show-code", Button)
             node_type = node_data["type"]
 
             self.display = True
-            path = self.app.build_breadcrumb_from_path()
+            path = self.app.build_breadcrumb_from_path()  # type: ignore
             preview.update(f"[cyan]{node_type.upper()[0]}[/] | {path} ")
             show_code.display = node_type != "DIR"
 
@@ -71,18 +71,23 @@ class RunBar(Horizontal):
         RunBar {
             height: 3;
             background: $background;
-            padding-top: 1;
-            padding-bottom: 1;
+            padding: 1 0;
  
-            & > Button {
-                margin-right: 1;
-                width: 16;
+            & > #run {
                 dock: right;
+            }
+
+            & > #search,
+            & > #flags {
+                margin-right: 1;
+                width: auto;
             }
 
         }
     """
 
     def compose(self) -> ComposeResult:
+        yield Button(" ⌕ ", id="search")
+        yield Button(" ☰ ", id="flags")
         yield RunButton("▷  Run", id="run")
         yield NodePreview()

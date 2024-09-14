@@ -136,11 +136,7 @@ class OrisaApp(App):
         self.open_search()
 
     def action_open_cli_flags(self) -> None:
-        if not any(
-            isinstance(screen, PytestCliFlagsModal) for screen in self._screen_stack
-        ):
-            modal = PytestCliFlagsModal()
-            self.push_screen(modal)
+        self.open_cli_flags()
 
     def action_toggle_sidebar(self) -> None:
         self.show_sidebar = not self.show_sidebar
@@ -183,6 +179,13 @@ class OrisaApp(App):
         if self.use_command_palette and not CommandPalette.is_open(self):
             self.push_screen(SearchCommandPalette())
 
+    def open_cli_flags(self) -> None:
+        if not any(
+            isinstance(screen, PytestCliFlagsModal) for screen in self._screen_stack
+        ):
+            modal = PytestCliFlagsModal()
+            self.push_screen(modal)
+
     def get_tree_node_by_pytest_nodeid(self, nodeid: str) -> TreeNode | None:
         return next(
             (
@@ -199,9 +202,13 @@ class OrisaApp(App):
         self.tests_tree.scroll_to_node(node)
         self.tests_tree.select_node(node)
 
-    @on(Button.Pressed, selector="#search-tests")
+    @on(Button.Pressed, selector="#search")
     def on_search(self) -> None:
         self.open_search()
+
+    @on(Button.Pressed, selector="#flags")
+    def on_cli_flags(self) -> None:
+        self.open_cli_flags()
 
     @on(Button.Pressed, selector="#show-code")
     def show_code(self) -> None:
