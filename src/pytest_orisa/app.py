@@ -136,7 +136,9 @@ class OrisaApp(App):
         self.open_search()
 
     def action_open_cli_flags(self) -> None:
-        if not any(isinstance(screen, PytestCliFlagsModal) for screen in self._screen_stack):
+        if not any(
+            isinstance(screen, PytestCliFlagsModal) for screen in self._screen_stack
+        ):
             modal = PytestCliFlagsModal()
             self.push_screen(modal)
 
@@ -302,8 +304,11 @@ class OrisaApp(App):
         tree_label_updater: TreeLabelUpdater,
         current_running_node: dict,
     ) -> None:
-        if returncode == ExitCode.USAGE_ERROR:
-            self.handle_usage_error(tree_label_updater)
+        if (
+            returncode == ExitCode.USAGE_ERROR
+            or returncode == ExitCode.NO_TESTS_COLLECTED
+        ):
+            self.handle_error(tree_label_updater)
         elif returncode == -15:
             self.handle_cancelled_run(tree_label_updater)
         elif returncode in (ExitCode.OK, ExitCode.TESTS_FAILED):
@@ -311,11 +316,10 @@ class OrisaApp(App):
                 returncode, run_result, tree_label_updater, current_running_node
             )
 
-    def handle_usage_error(self, tree_label_updater: TreeLabelUpdater) -> None:
+    def handle_error(self, tree_label_updater: TreeLabelUpdater) -> None:
         self.run_content.tab_color = "darkgrey"
         tree_label_updater.mark_error_state()
         self.query(TestSessionStatusBar).last().display = False
-        self.app.notify(message="Usage error", severity="error", timeout=2)
 
     def handle_cancelled_run(self, tree_label_updater: TreeLabelUpdater) -> None:
         self.run_content.tab_color = "darkgrey"

@@ -5,8 +5,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.dom import DOMNode
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label
-
+from textual.widgets import Button, Input
 
 
 class PytestCliFlagsModal(ModalScreen):

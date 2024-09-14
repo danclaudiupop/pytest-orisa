@@ -24,11 +24,10 @@ RunContent:focus-within,
 
 
 Footer {
-  border: none;
   background: $background;
 
   & FooterKey {
-    color: $primary 85%;
+    color: $primary;
     background: transparent;
 
     .footer-key--key {
