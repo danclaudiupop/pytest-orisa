@@ -26,13 +26,13 @@ class TestsTree(Tree):
             border: solid grey;
             padding: 1;
 
+            & > .tree--guides,
             & > .tree--guides-hover,
-            & > .tree--cursor,
-            & > .tree--guides-selected,
-            & > .tree--guides {
+            & > .tree--guides-selected {
                 color: $primary;
             }
 
+            & > .tree--cursor,
             &:focus > .tree--cursor {
                 background: $primary;
             }
