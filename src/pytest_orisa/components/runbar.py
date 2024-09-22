@@ -62,7 +62,7 @@ class NodePreview(Container):
 
             self.display = True
             path = self.app.build_breadcrumb_from_path()  # type: ignore
-            preview.update(f"[cyan]{node_type.upper()[0]}[/] | {path} ")
+            preview.update(f" [cyan]{node_type.upper()[0]}[/] | {path} ")
             show_code.display = node_type != "DIR"
 
 

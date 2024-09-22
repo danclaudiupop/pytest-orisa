@@ -117,13 +117,18 @@ def pytest_collection_modifyitems(
                     data=build_pytest_tree(items),
                 )
             )
-        else:
-            send_event(
-                Event(
-                    type=EventType.TESTS_TO_RUN_COLLECTION,
-                    data=[item.nodeid for item in items],
-                )
+
+
+def pytest_collection_finish(session: Session) -> None:
+    if session.config.getoption("--orisa") and not session.config.getoption(
+        "--collect-only"
+    ):
+        send_event(
+            Event(
+                type=EventType.TESTS_TO_RUN_COLLECTION,
+                data=[item.nodeid for item in session.items],
             )
+        )
 
 
 REPORT = {
