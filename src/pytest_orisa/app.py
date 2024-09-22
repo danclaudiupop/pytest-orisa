@@ -62,7 +62,7 @@ class SearchCommandPalette(CommandPalette):
 
         SearchCommandPalette:dark > .command-palette--highlight {
             text-style: bold;
-            color: hotpink;
+            color: royalblue;
         }
     """
 
@@ -90,7 +90,7 @@ class SearchTestsCommands(Provider):
                         score,
                         matcher.highlight(node.data["name"]),
                         partial(app.select_node, node),
-                        help=f"{node.data["type"]} | {node.data["path"]}",
+                        help=f"{node.data['type']} | {node.data['path']}",
                     )
 
     @property
@@ -143,13 +143,11 @@ class OrisaApp(App):
         self.show_sidebar = not self.show_sidebar
 
     def action_clear_all_runs(self) -> None:
-        # clear the results
         total_cleared = 0
         for widget in self.query(RunContent):
             total_cleared += widget.tab_count
             widget.clear_panes()
 
-        # clear the tree results
         self.tests_tree.reset_tree_labels()
 
         message = (

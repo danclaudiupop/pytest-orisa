@@ -69,7 +69,8 @@ class PytestCliFlagsModal(ModalScreen):
         return self.query_one("#inputs-container", VerticalScroll)
 
     def compose(self) -> ComposeResult:
-        with Container():
+        with Container() as container:
+            container.border_title = "[black on cyan] Pytest CLI Flags [/]"
             yield VerticalScroll(id="inputs-container")
             with Horizontal(id="button-container"):
                 yield Button("➕ Add", id="add-flag")

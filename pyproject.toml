@@ -1,24 +1,40 @@
-[tool.poetry]
+[project]
 name = "pytest-orisa"
 version = "0.1.0"
 description = ""
-authors = ["Dan Claudiu Pop <danclaudiupop@gmail.com>"]
 readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Dan Claudiu Pop", email = "danclaudiupop@gmail.com" }
+]
+license = { file = "LICENSE" }
+keywords = ["tui", "terminal", "pytest", "testing", "textual", "cli", "orisa", "developer-tool"]
+classifiers = [
+    "Framework :: Pytest",
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
 
-[tool.poetry.dependencies]
-python = "^3.12"
-textual = "^0.74.0"
-pytest = "^8.3.2"
-platformdirs = "^4.2.2"
-
-
-[tool.poetry.group.dev.dependencies]
-textual-dev = "^1.5.1"
+dependencies = [
+    "pytest>=8.3.3",
+    "textual>=0.79.1",
+    "platformdirs>=4.3.6",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
+[tool.uv]
+dev-dependencies = [
+    "textual-dev>=1.6.1",
+]
 
-[tool.poetry.plugins."pytest11"]
+[project.entry-points.pytest11]
 pytest-orisa = "pytest_orisa.plugin"
