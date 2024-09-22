@@ -8,6 +8,7 @@ import pytest
 from _pytest import nodes
 from _pytest._io import TerminalWriter
 from _pytest.nodes import Node
+from _pytest.reports import TestReport
 from pytest import (
     CallInfo,
     Class,
@@ -16,9 +17,9 @@ from pytest import (
     Function,
     Item,
     Session,
-    TestReport,
 )
 
+from pytest_orisa.domain import Event, EventType
 from pytest_orisa.event_dispatcher import send_event
 
 logging.basicConfig(level=logging.ERROR)
@@ -86,13 +87,43 @@ def build_pytest_tree(items: list[nodes.Item]) -> dict:
     return tree
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--orisa",
+        action="store_true",
+        default=True,
+        help="Enable Orisa plugin functionality",
+    )
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_configure(config: Config) -> None:
+    run_log_width = os.getenv("ORISA_RUN_LOG_WIDTH")
+    if run_log_width is not None:
+        run_log_width = int(run_log_width)
+
+        terminal_writer: TerminalWriter = config.get_terminal_writer()
+        terminal_writer.fullwidth = run_log_width
+
+
 def pytest_collection_modifyitems(
     session: Session, config: Config, items: list[nodes.Item]
 ) -> None:
-    if config.getoption("--collect-only"):
-        send_event(
-            event={"type": "tests_collected", "data": build_pytest_tree(session.items)}
-        )
+    if config.getoption("--orisa"):
+        if config.getoption("--collect-only"):
+            send_event(
+                Event(
+                    type=EventType.TREE_COLLECTION,
+                    data=build_pytest_tree(items),
+                )
+            )
+        else:
+            send_event(
+                Event(
+                    type=EventType.TESTS_TO_RUN_COLLECTION,
+                    data=[item.nodeid for item in items],
+                )
+            )
 
 
 REPORT = {
@@ -107,86 +138,99 @@ REPORT = {
 
 
 @pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(item: Item, call: CallInfo):
-    outcome = yield
-    report: TestReport = outcome.get_result()
+def pytest_runtest_makereport(item: Item, call: CallInfo[None]):
+    if item.config.getoption("--orisa"):
+        outcome = yield
+        report: TestReport = outcome.get_result()
 
-    def add_report(data, report: TestReport, status: str):
-        report_data = {
-            "nodeid": report.nodeid,
-            "duration": report.duration,
-        }
-        if status == "passed":
-            report_data.update(
-                {
-                    "fixtures_used": [
-                        {
-                            "module": "placeholder",
-                            "argname": argname,
-                            "scope": fixture[0].scope,
-                            "location": "placeholder",
-                            "lineno": "placeholder",
-                        }
-                        for argname, fixture in item._fixtureinfo.name2fixturedefs.items()
-                    ],
-                    "longreprtext": report.longreprtext,
-                    "caplog": report.caplog,
-                }
-            )
+        def add_report(data, report: TestReport, status: str):
+            report_data = {
+                "nodeid": report.nodeid,
+                "duration": report.duration,
+            }
+            if status == "passed":
+                report_data.update(
+                    {
+                        "fixtures_used": [
+                            {
+                                "module": "placeholder",
+                                "argname": argname,
+                                "scope": fixture[0].scope,
+                                "location": "placeholder",
+                                "lineno": "placeholder",
+                            }
+                            for argname, fixture in item._fixtureinfo.name2fixturedefs.items()
+                        ],
+                        "longreprtext": report.longreprtext,
+                        "caplog": report.caplog,
+                    }
+                )
 
-        if status == "failed":
-            report_data.update(
-                {
-                    "longreprtext": report.longreprtext,
-                    "capstderr": report.capstderr,
-                    "caplog": report.caplog,
-                }
-            )
-        data[status].append(report_data)
-        data["meta"]["total"] += 1
+            if status == "failed":
+                report_data.update(
+                    {
+                        "longreprtext": report.longreprtext,
+                        "capstderr": report.capstderr,
+                        "caplog": report.caplog,
+                    }
+                )
+            data[status].append(report_data)
+            data["meta"]["total"] += 1
 
-    if report.when == "call":
-        if report.passed:
-            add_report(REPORT, report, "passed")
-        elif report.failed:
-            add_report(REPORT, report, "failed")
-        elif report.skipped:
-            add_report(REPORT, report, "skipped")
-        elif report.xfailed:
-            add_report(REPORT, report, "xfailed")
+        if report.when == "call":
+            if report.passed:
+                add_report(REPORT, report, "passed")
+                send_event(
+                    Event(
+                        type=EventType.TEST_OUTCOME,
+                        data={"nodeid": report.nodeid, "status": "passed"},
+                    ),
+                )
+            elif report.failed:
+                add_report(REPORT, report, "failed")
+                send_event(
+                    Event(
+                        type=EventType.TEST_OUTCOME,
+                        data={"nodeid": report.nodeid, "status": "failed"},
+                    )
+                )
+            elif report.skipped:
+                add_report(REPORT, report, "skipped")
+            elif report.xfailed:
+                add_report(REPORT, report, "xfailed")
+    else:
+        yield
 
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_setup(item: Item) -> Generator:
-    nodeid = item.nodeid
-    start_time = time.time()
-    yield
-    end_time = time.time()
-    REPORT["setup_durations"][nodeid] = end_time - start_time
+    if item.config.getoption("--orisa"):
+        nodeid = item.nodeid
+        start_time = time.time()
+        yield
+        end_time = time.time()
+        REPORT["setup_durations"][nodeid] = end_time - start_time
+    else:
+        yield
 
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_teardown(item: Item) -> Generator:
-    nodeid = item.nodeid
-    start_time = time.time()
-    yield
-    end_time = time.time()
-    REPORT["teardown_durations"][nodeid] = end_time - start_time
-
-
-@pytest.hookimpl(trylast=True)
-def pytest_configure(config: Config) -> None:
-    run_log_width = os.getenv("ORISA_RUN_LOG_WIDTH")
-    if run_log_width is not None:
-        run_log_width = int(run_log_width)
-
-        terminal_writer: TerminalWriter = config.get_terminal_writer()
-        terminal_writer.fullwidth = run_log_width
+    if item.config.getoption("--orisa"):
+        nodeid = item.nodeid
+        start_time = time.time()
+        yield
+        end_time = time.time()
+        REPORT["teardown_durations"][nodeid] = end_time - start_time
+    else:
+        yield
 
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_sessionfinish(session: Session, exitstatus: ExitCode) -> None:
-    if not session.config.getoption("--collect-only"):
+    if session.config.getoption("--orisa") and not session.config.getoption(
+        "--collect-only"
+    ):
         REPORT["meta"]["total_duration"] = (
             time.time()
             - session.config.pluginmanager.get_plugin(
@@ -194,7 +238,12 @@ def pytest_sessionfinish(session: Session, exitstatus: ExitCode) -> None:
             )._sessionstarttime
         )
         REPORT["meta"]["exit_status"] = exitstatus
-        send_event(event={"type": "report", "data": REPORT})
+        send_event(
+            Event(
+                type=EventType.REPORT,
+                data=REPORT,
+            )
+        )
 
 
 def collect_tests() -> None:

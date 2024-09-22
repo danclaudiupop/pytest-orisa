@@ -4,6 +4,8 @@ import socket
 import threading
 from typing import Callable
 
+from pytest_orisa.domain import Event
+
 
 class EventDispatcher:
     def __init__(self, host="localhost", port=1337) -> None:
@@ -86,14 +88,14 @@ class EventDispatcher:
             return self.event_data.get(event_type, None)
 
 
-def send_event(event) -> None:
+def send_event(event: Event) -> None:
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect(("localhost", 1337))
-    client_socket.sendall(json.dumps(event).encode("utf-8"))
+    client_socket.sendall(event.deserialize().encode("utf-8"))
     client_socket.close()
 
 
-async def wait_for_server(host, port, max_retries=5, retry_delay=0.1):
+async def wait_for_server(host, port, max_retries=5, retry_delay=0.1) -> None:
     for attempt in range(max_retries):
         try:
             _, writer = await asyncio.open_connection(host, port)

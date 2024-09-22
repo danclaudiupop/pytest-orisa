@@ -33,7 +33,7 @@ from textual.worker import Worker, get_current_worker
 
 from pytest_orisa.cache import load_cache, write_cache
 from pytest_orisa.components.code import CodeViewerScreen
-from pytest_orisa.components.collection import TestsTree, TreeLabelUpdater
+from pytest_orisa.components.collection import TestsTree
 from pytest_orisa.components.flags import PytestCliFlagsModal
 from pytest_orisa.components.footer import OrisaFooter
 from pytest_orisa.components.result import (
@@ -43,6 +43,7 @@ from pytest_orisa.components.result import (
     TestSessionStatusBar,
 )
 from pytest_orisa.components.runbar import NodePreview, RunBar, RunButton
+from pytest_orisa.domain import EventType
 from pytest_orisa.event_dispatcher import (
     EventDispatcher,
     wait_for_server,
@@ -149,12 +150,10 @@ class OrisaApp(App):
             widget.clear_panes()
 
         # clear the tree results
-        for node in self.tests_tree.tree_nodes.values():
-            if node.data and isinstance(node.data, dict):
-                node.label = node.data["name"]
+        self.tests_tree.reset_tree_labels()
 
         message = (
-            f"Cleared all test runs. [black on cyan] {total_cleared} [/] in total."
+            f"[black on cyan] {total_cleared} [/] test runs cleared"
             if total_cleared
             else "No test runs to clear."
         )
@@ -265,84 +264,77 @@ class OrisaApp(App):
         run_button: RunButton,
         pytest_cli_flags: list[tuple[str, bool]],
     ) -> None:
-        current_running_node = self.current_selected_node
         run_worker = get_current_worker()
         self.current_run_worker = run_worker
 
-        with TreeLabelUpdater(
-            self.tests_tree, current_running_node
-        ) as tree_label_updater:
-            process: Popen[str] = run_node(
-                node=self.current_selected_node,
-                pytest_cli_flags=pytest_cli_flags,
-            )
-            if process.stdout:
-                with process.stdout:
-                    for line in iter(process.stdout.readline, ""):
-                        if run_worker.is_cancelled:
-                            process.terminate()
-                            run_result.run_log.write_lines(
-                                [
-                                    "".join(["-" * 80, "\n"]),
-                                    "Run cancelled \n",
-                                    "The test execution was interrupted.\n",
-                                    "".join(["-" * 80]),
-                                ]
-                            )
-                            break
-                        run_result.run_log.write_line(line)
-            process.wait()
+        process: Popen[str] = run_node(
+            node=self.current_selected_node,
+            pytest_cli_flags=pytest_cli_flags,
+        )
+        if process.stdout:
+            with process.stdout:
+                for line in iter(process.stdout.readline, ""):
+                    if run_worker.is_cancelled:
+                        process.terminate()
+                        run_result.run_log.write_lines(
+                            [
+                                "".join(["-" * 80, "\n"]),
+                                "Run cancelled \n",
+                                "The test execution was interrupted.\n",
+                                "".join(["-" * 80]),
+                            ]
+                        )
+                        break
+                    run_result.run_log.write_line(line)
+        process.wait()
 
-            if process.returncode != ExitCode.OK and process.stderr:
-                with process.stderr:
-                    for line in iter(process.stderr.readline, ""):
-                        run_result.run_log.write_line(line)
+        if process.returncode != ExitCode.OK and process.stderr:
+            with process.stderr:
+                for line in iter(process.stderr.readline, ""):
+                    run_result.run_log.write_line(line)
 
-            run_button.reset()
+        run_button.reset()
 
-            self.handle_process_result(
-                process.returncode, run_result, tree_label_updater, current_running_node
-            )
+        self.handle_process_result(
+            process.returncode,
+            run_result,
+            self.current_selected_node,
+        )
 
     def handle_process_result(
         self,
         returncode: int,
         run_result: RunResult,
-        tree_label_updater: TreeLabelUpdater,
         current_running_node: dict,
     ) -> None:
         if (
             returncode == ExitCode.USAGE_ERROR
             or returncode == ExitCode.NO_TESTS_COLLECTED
         ):
-            self.handle_error(tree_label_updater)
+            self.handle_error()
         elif returncode == -15:
-            self.handle_cancelled_run(tree_label_updater)
+            self.handle_cancelled_run()
         elif returncode in (ExitCode.OK, ExitCode.TESTS_FAILED):
-            self.handle_test_result(
-                returncode, run_result, tree_label_updater, current_running_node
-            )
+            self.handle_test_result(returncode, run_result, current_running_node)
 
-    def handle_error(self, tree_label_updater: TreeLabelUpdater) -> None:
+    def handle_error(self) -> None:
         self.run_content.tab_color = "darkgrey"
-        tree_label_updater.mark_error_state()
+        self.tests_tree.reset_tree_labels()
         self.query(TestSessionStatusBar).last().display = False
 
-    def handle_cancelled_run(self, tree_label_updater: TreeLabelUpdater) -> None:
+    def handle_cancelled_run(self) -> None:
         self.run_content.tab_color = "darkgrey"
-        tree_label_updater.mark_error_state()
+        self.tests_tree.reset_tree_labels()
         self.app.notify(message="Run cancelled", severity="error", timeout=2)
 
     def handle_test_result(
         self,
         returncode: int,
         run_result: RunResult,
-        tree_label_updater: TreeLabelUpdater,
         current_running_node: dict,
     ) -> None:
-        report = self.event_dispatcher.get_event_data("report")
+        report = self.event_dispatcher.get_event_data(EventType.REPORT)
         run_result.report = report
-        tree_label_updater.report = report
 
         if returncode == ExitCode.OK:
             status, color, severity = "PASSED", "cyan", "information"
