@@ -331,8 +331,7 @@ class OrisaApp(App):
         run_result: RunResult,
         current_running_node: dict,
     ) -> None:
-        report = self.event_dispatcher.get_event_data(EventType.REPORT)
-        run_result.report = report
+        run_result.report = self.event_dispatcher.get_event_data(EventType.REPORT)
 
         if returncode == ExitCode.OK:
             status, color, severity = "PASSED", "cyan", "information"
