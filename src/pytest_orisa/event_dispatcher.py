@@ -19,10 +19,8 @@ class EventDispatcher:
         self.event_handlers = {}
         self.event_data = {}
         self.lock = threading.Lock()
-        print(f"Server started on {self.host}:{self.port}")
 
     def register_handler(self, event_type: str, handler: Callable) -> None:
-        print(f"Registered handler for event type: {event_type}")
         with self.lock:
             self.event_handlers[event_type] = handler
 
@@ -67,7 +65,6 @@ class EventDispatcher:
         while not self.shutdown_flag.is_set():
             try:
                 client_socket, addr = self.server_socket.accept()
-                print(f"Connection from {addr}")
                 client_thread = threading.Thread(
                     target=self.handle_client, args=(client_socket,)
                 )
@@ -81,7 +78,6 @@ class EventDispatcher:
         self.server_socket.close()
         for thread in self.client_threads:
             thread.join()
-        print("Server stopped")
 
     def get_event_data(self, event_type: str):
         with self.lock:
@@ -91,7 +87,7 @@ class EventDispatcher:
 def send_event(event: Event) -> None:
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect(("localhost", 1337))
-    client_socket.sendall(event.deserialize().encode("utf-8"))
+    client_socket.sendall(event.serialize().encode("utf-8"))
     client_socket.close()
 
 

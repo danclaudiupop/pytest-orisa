@@ -19,7 +19,7 @@ from pytest import (
     Session,
 )
 
-from pytest_orisa.domain import Event, EventType
+from pytest_orisa.domain import Event, EventType, NodeType
 from pytest_orisa.event_dispatcher import send_event
 
 logging.basicConfig(level=logging.ERROR)
@@ -89,9 +89,9 @@ def build_pytest_tree(items: list[nodes.Item]) -> dict:
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--orisa",
+        "--enable-orisa",
         action="store_true",
-        default=True,
+        default=False,
         help="Enable Orisa plugin functionality",
     )
 
@@ -109,7 +109,7 @@ def pytest_configure(config: Config) -> None:
 def pytest_collection_modifyitems(
     session: Session, config: Config, items: list[nodes.Item]
 ) -> None:
-    if config.getoption("--orisa"):
+    if config.getoption("--enable-orisa"):
         if config.getoption("--collect-only"):
             send_event(
                 Event(
@@ -120,7 +120,7 @@ def pytest_collection_modifyitems(
 
 
 def pytest_collection_finish(session: Session) -> None:
-    if session.config.getoption("--orisa") and not session.config.getoption(
+    if session.config.getoption("--enable-orisa") and not session.config.getoption(
         "--collect-only"
     ):
         send_event(
@@ -144,7 +144,7 @@ REPORT = {
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item: Item, call: CallInfo[None]):
-    if item.config.getoption("--orisa"):
+    if item.config.getoption("--enable-orisa"):
         outcome = yield
         report: TestReport = outcome.get_result()
 
@@ -209,7 +209,7 @@ def pytest_runtest_makereport(item: Item, call: CallInfo[None]):
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_setup(item: Item) -> Generator:
-    if item.config.getoption("--orisa"):
+    if item.config.getoption("--enable-orisa"):
         nodeid = item.nodeid
         start_time = time.time()
         yield
@@ -221,7 +221,7 @@ def pytest_runtest_setup(item: Item) -> Generator:
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_teardown(item: Item) -> Generator:
-    if item.config.getoption("--orisa"):
+    if item.config.getoption("--enable-orisa"):
         nodeid = item.nodeid
         start_time = time.time()
         yield
@@ -233,7 +233,7 @@ def pytest_runtest_teardown(item: Item) -> Generator:
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_sessionfinish(session: Session, exitstatus: ExitCode) -> None:
-    if session.config.getoption("--orisa") and not session.config.getoption(
+    if session.config.getoption("--enable-orisa") and not session.config.getoption(
         "--collect-only"
     ):
         REPORT["meta"]["total_duration"] = (
@@ -253,7 +253,12 @@ def pytest_sessionfinish(session: Session, exitstatus: ExitCode) -> None:
 
 def collect_tests() -> None:
     try:
-        subprocess.run(["pytest", "--collect-only"], check=True)
+        subprocess.run(
+            ["pytest", "--collect-only", "-q", "--enable-orisa"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"pytest collection failed: {e}") from e
     except Exception as e:
@@ -264,14 +269,14 @@ def run_node(
     node: dict | None, pytest_cli_flags: list[tuple[str, bool]]
 ) -> subprocess.Popen[str]:
     if node is not None:
-        if node["type"] == "FUNCTION" and node["parent_type"] == "CLASS":
+        if node["type"] == NodeType.FUNCTION and node["parent_type"] == NodeType.CLASS:
             path = f"{node['path']}::{node['parent_name']}::{node['name']}"
-        elif node["type"] in ["CLASS", "FUNCTION"]:
+        elif node["type"] in [NodeType.CLASS, NodeType.FUNCTION]:
             path = f"{node['path']}::{node['name']}"
         else:
             path = node["path"]
 
-        args: list[str] = [path]
+        args: list[str] = [path, "--enable-orisa"]
         for flag, is_active in pytest_cli_flags:
             if is_active:
                 args.append(flag)

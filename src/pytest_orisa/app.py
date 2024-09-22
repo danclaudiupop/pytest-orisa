@@ -43,7 +43,7 @@ from pytest_orisa.components.result import (
     TestSessionStatusBar,
 )
 from pytest_orisa.components.runbar import NodePreview, RunBar, RunButton
-from pytest_orisa.domain import EventType
+from pytest_orisa.domain import EventType, NodeType
 from pytest_orisa.event_dispatcher import (
     EventDispatcher,
     wait_for_server,
@@ -365,14 +365,14 @@ class OrisaApp(App):
         sliced_path = path[start_root_index:]
         breadcrumb = " > ".join(sliced_path) if len(sliced_path) > 1 else sliced_path[0]
 
-        if self.current_selected_node["type"] != "DIR":
+        if self.current_selected_node["type"] != NodeType.DIR:
             node_name = f"⿻ {self.current_selected_node['name']}"
             if (
-                self.current_selected_node["type"] == "FUNCTION"
-                and self.current_selected_node["parent_type"] == "CLASS"
+                self.current_selected_node["type"] == NodeType.FUNCTION
+                and self.current_selected_node["parent_type"] == NodeType.CLASS
             ):
                 return f"{breadcrumb} > {self.current_selected_node['parent_name']} > {node_name}"
-            elif self.current_selected_node["type"] != "MODULE":
+            elif self.current_selected_node["type"] != NodeType.MODULE:
                 return f"{breadcrumb} > {node_name}"
 
         return breadcrumb
