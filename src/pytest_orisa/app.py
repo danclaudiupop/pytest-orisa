@@ -180,8 +180,7 @@ class OrisaApp(App):
         if not any(
             isinstance(screen, PytestCliFlagsModal) for screen in self._screen_stack
         ):
-            modal = PytestCliFlagsModal()
-            self.push_screen(modal)
+            self.push_screen(PytestCliFlagsModal())
 
     def get_tree_node_by_pytest_nodeid(self, nodeid: str) -> TreeNode | None:
         return next(
@@ -279,7 +278,6 @@ class OrisaApp(App):
                                 "".join(["-" * 80, "\n"]),
                                 "Run cancelled \n",
                                 "The test execution was interrupted.\n",
-                                "".join(["-" * 80]),
                             ]
                         )
                         break

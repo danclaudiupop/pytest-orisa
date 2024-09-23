@@ -23,7 +23,7 @@ classifiers = [
 
 dependencies = [
     "pytest>=8.3.3",
-    "textual>=0.79.1",
+    "textual[python,syntax]>=0.79.1",
     "platformdirs>=4.3.6",
 ]
 

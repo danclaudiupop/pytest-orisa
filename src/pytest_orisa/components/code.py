@@ -46,14 +46,11 @@ class CodeViewerScreen(ModalScreen):
         textarea = TextArea(
             text=Path(self.current_selected_node["path"]).read_text(encoding="utf-8"),
             show_line_numbers=True,
+            language="python",
             read_only=True,
             id="code-viewer",
         )
-        textarea.move_cursor(
-            (self.current_selected_node["lineno"], 0),
-            center=True,
-            record_width=False,
-        )
+        textarea.move_cursor((self.current_selected_node["lineno"], 0), center=True)
 
         grid = Grid(
             Horizontal(
