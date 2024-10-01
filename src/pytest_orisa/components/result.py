@@ -206,12 +206,14 @@ class RunResult(TabbedContent):
         self.query_one(TestSessionStatusBar).test_session_finished()
         await self.push_passed_tests(report)
         await self.push_failed_tests(report)
+        await self.push_skipped_tests(report)
         await self.push_live_logs(report)
 
     def update_summary_tab(self, report: dict) -> None:
-        self.get_tab(
-            "summary"
-        ).label = f"[black on white] {report['meta']['total']} [/] tests"
+        total_tests = sum(
+            len(report[key]) for key in ["passed", "failed", "skipped", "xfailed"]
+        )
+        self.get_tab("summary").label = f"[black on white] {total_tests} [/] tests"
 
     async def push_failed_tests(self, report: dict) -> None:
         failed_reports: list[dict] = report["failed"]
@@ -253,27 +255,50 @@ class RunResult(TabbedContent):
                 "Setup duration",
                 "Call duration",
                 "Teardown duration",
+                "Total duration",
                 "Nr. of fixtures used",
             )
         )
 
         for passed in passed_reports:
-            setup_duration = report["setup_durations"].get(passed["nodeid"])
-            teardown_duration = report["teardown_durations"].get(passed["nodeid"])
+            nodeid = passed["nodeid"]
+            setup_duration = report["setup_durations"][nodeid]
+            call_duration = passed["call_duration"]
+            teardown_duration = report["teardown_durations"][nodeid]
+            total_duration = setup_duration + call_duration + teardown_duration
+            fixtures_count = len(passed["fixtures"])
 
             table.add_row(
-                *(
-                    passed["nodeid"],
-                    f"{setup_duration:.2f}",
-                    f"{passed['duration']:.2f}",
-                    f"{teardown_duration:.2f}",
-                    len(passed["fixtures_used"]),
-                )
+                nodeid,
+                f"{setup_duration:.2f}s",
+                f"{call_duration:.2f}s",
+                f"{teardown_duration:.2f}s",
+                f"{total_duration:.2f}s",
+                f"{fixtures_count:,d}",
             )
 
         await self.add_pane(
             TabPane(
                 f"[black on green] {len(passed_reports)} [/] passed",
+                VerticalScroll(table),
+            )
+        )
+
+    async def push_skipped_tests(self, report: dict) -> None:
+        skipped_reports: list[dict] = report["skipped"]
+
+        if not skipped_reports:
+            return
+
+        table = PassedTestDataTable(cursor_type="row")
+        table.add_columns("Test", "Skip reason")
+
+        for skipped in skipped_reports:
+            table.add_row(skipped["nodeid"], skipped["skip_reason"])
+
+        await self.add_pane(
+            TabPane(
+                f"[black on yellow] {len(skipped_reports)} [/] skipped",
                 VerticalScroll(table),
             )
         )

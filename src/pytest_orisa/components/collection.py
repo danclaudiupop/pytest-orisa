@@ -108,6 +108,8 @@ class TestsTree(Tree):
                     node.label = f"{node.data['name']} [green]● [/]"
                 elif status == "failed":
                     node.label = f"{node.data['name']} [red]✖ [/]"
+                elif status == "skipped":
+                    node.label = f"{node.data['name']} [yellow]◉ [/]"
 
     def reset_tree_labels(self) -> None:
         for node in self.tree_nodes.values():

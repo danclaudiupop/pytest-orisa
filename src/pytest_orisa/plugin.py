@@ -2,7 +2,8 @@ import logging
 import os
 import subprocess
 import time
-from typing import Generator
+from dataclasses import asdict
+from typing import Any, Generator
 
 import pytest
 from _pytest import nodes
@@ -19,11 +20,118 @@ from pytest import (
     Session,
 )
 
-from pytest_orisa.domain import Event, EventType, NodeType
+from pytest_orisa.domain import Event, EventType, NodeType, Report, TestItem
 from pytest_orisa.event_dispatcher import send_event
 
 logging.basicConfig(level=logging.ERROR)
 logger: logging.Logger = logging.getLogger(__name__)
+
+
+REPORT = Report()
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(
+    item: Item, call: CallInfo[None]
+) -> Generator[None, Any, None]:
+    if item.config.getoption("--enable-orisa"):
+        outcome = yield
+        report: TestReport = outcome.get_result()
+        nodeid = report.nodeid
+
+        test_item = next(
+            (
+                t
+                for t in REPORT.passed + REPORT.failed + REPORT.skipped + REPORT.xfailed
+                if t.nodeid == nodeid
+            ),
+            None,
+        )
+        if test_item is None:
+            test_item = TestItem(nodeid=nodeid)
+
+        if report.skipped:
+            test_item.status = "skipped"
+            test_item.skip_reason = str(report.longrepr[2]) if report.longrepr else ""  # type: ignore
+            REPORT.skipped.append(test_item)
+
+        elif report.when == "call":
+            test_item.call_duration = report.duration
+
+            if report.passed:
+                test_item.status = "passed"
+                test_item.fixtures = [
+                    {
+                        "argname": argname,
+                        "scope": fixture[0].scope,
+                    }
+                    for argname, fixture in item._fixtureinfo.name2fixturedefs.items()
+                ]
+                test_item.caplog = report.caplog
+                REPORT.passed.append(test_item)
+
+            elif report.failed:
+                test_item.status = "failed"
+                test_item.longreprtext = report.longreprtext
+                test_item.capstderr = report.capstderr
+                test_item.caplog = report.caplog
+                REPORT.failed.append(test_item)
+
+        send_event(
+            Event(
+                type=EventType.TEST_OUTCOME,
+                data={
+                    "nodeid": nodeid,
+                    "status": test_item.status,
+                },
+            )
+        )
+    else:
+        yield
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_setup(item: Item) -> Generator:
+    if item.config.getoption("--enable-orisa"):
+        nodeid = item.nodeid
+        start_time = time.time()
+        yield
+        end_time = time.time()
+        REPORT.setup_durations[nodeid] = end_time - start_time
+    else:
+        yield
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_teardown(item: Item) -> Generator:
+    if item.config.getoption("--enable-orisa"):
+        nodeid = item.nodeid
+        start_time = time.time()
+        yield
+        end_time = time.time()
+        REPORT.teardown_durations[nodeid] = end_time - start_time
+    else:
+        yield
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_sessionfinish(session: Session, exitstatus: ExitCode) -> None:
+    if session.config.getoption("--enable-orisa") and not session.config.getoption(
+        "--collect-only"
+    ):
+        REPORT.total_duration = (
+            time.time()
+            - session.config.pluginmanager.get_plugin(
+                "terminalreporter"
+            )._sessionstarttime
+        )
+        REPORT.exit_status = exitstatus
+        send_event(
+            Event(
+                type=EventType.REPORT,
+                data=asdict(REPORT),
+            )
+        )
 
 
 def build_pytest_tree(items: list[nodes.Item]) -> dict:
@@ -127,126 +235,6 @@ def pytest_collection_finish(session: Session) -> None:
             Event(
                 type=EventType.TESTS_TO_RUN_COLLECTION,
                 data=[item.nodeid for item in session.items],
-            )
-        )
-
-
-REPORT = {
-    "passed": [],
-    "failed": [],
-    "skipped": [],
-    "xfailed": [],
-    "meta": {"total": 0},
-    "setup_durations": {},
-    "teardown_durations": {},
-}
-
-
-@pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(item: Item, call: CallInfo[None]):
-    if item.config.getoption("--enable-orisa"):
-        outcome = yield
-        report: TestReport = outcome.get_result()
-
-        def add_report(data, report: TestReport, status: str):
-            report_data = {
-                "nodeid": report.nodeid,
-                "duration": report.duration,
-            }
-            if status == "passed":
-                report_data.update(
-                    {
-                        "fixtures_used": [
-                            {
-                                "module": "placeholder",
-                                "argname": argname,
-                                "scope": fixture[0].scope,
-                                "location": "placeholder",
-                                "lineno": "placeholder",
-                            }
-                            for argname, fixture in item._fixtureinfo.name2fixturedefs.items()
-                        ],
-                        "longreprtext": report.longreprtext,
-                        "caplog": report.caplog,
-                    }
-                )
-
-            if status == "failed":
-                report_data.update(
-                    {
-                        "longreprtext": report.longreprtext,
-                        "capstderr": report.capstderr,
-                        "caplog": report.caplog,
-                    }
-                )
-            data[status].append(report_data)
-            data["meta"]["total"] += 1
-
-        if report.when == "call":
-            if report.passed:
-                add_report(REPORT, report, "passed")
-                send_event(
-                    Event(
-                        type=EventType.TEST_OUTCOME,
-                        data={"nodeid": report.nodeid, "status": "passed"},
-                    ),
-                )
-            elif report.failed:
-                add_report(REPORT, report, "failed")
-                send_event(
-                    Event(
-                        type=EventType.TEST_OUTCOME,
-                        data={"nodeid": report.nodeid, "status": "failed"},
-                    )
-                )
-            elif report.skipped:
-                add_report(REPORT, report, "skipped")
-            elif report.xfailed:
-                add_report(REPORT, report, "xfailed")
-    else:
-        yield
-
-
-@pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_setup(item: Item) -> Generator:
-    if item.config.getoption("--enable-orisa"):
-        nodeid = item.nodeid
-        start_time = time.time()
-        yield
-        end_time = time.time()
-        REPORT["setup_durations"][nodeid] = end_time - start_time
-    else:
-        yield
-
-
-@pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_teardown(item: Item) -> Generator:
-    if item.config.getoption("--enable-orisa"):
-        nodeid = item.nodeid
-        start_time = time.time()
-        yield
-        end_time = time.time()
-        REPORT["teardown_durations"][nodeid] = end_time - start_time
-    else:
-        yield
-
-
-@pytest.hookimpl(tryfirst=True)
-def pytest_sessionfinish(session: Session, exitstatus: ExitCode) -> None:
-    if session.config.getoption("--enable-orisa") and not session.config.getoption(
-        "--collect-only"
-    ):
-        REPORT["meta"]["total_duration"] = (
-            time.time()
-            - session.config.pluginmanager.get_plugin(
-                "terminalreporter"
-            )._sessionstarttime
-        )
-        REPORT["meta"]["exit_status"] = exitstatus
-        send_event(
-            Event(
-                type=EventType.REPORT,
-                data=REPORT,
             )
         )
 
