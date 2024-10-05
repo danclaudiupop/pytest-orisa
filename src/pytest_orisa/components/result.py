@@ -270,10 +270,10 @@ class RunResult(TabbedContent):
 
             table.add_row(
                 nodeid,
-                f"{setup_duration:.2f}s",
-                f"{call_duration:.2f}s",
-                f"{teardown_duration:.2f}s",
-                f"{total_duration:.2f}s",
+                f"{setup_duration:.1f}s",
+                f"{call_duration:.1f}s",
+                f"{teardown_duration:.1f}s",
+                f"{total_duration:.1f}s",
                 f"{fixtures_count:,d}",
             )
 

@@ -77,17 +77,30 @@ def pytest_runtest_makereport(
                 test_item.caplog = report.caplog
                 REPORT.failed.append(test_item)
 
+    else:
+        yield
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_runtest_logfinish(nodeid: str, location: tuple) -> None:
+    test_item: TestItem | None = REPORT.get_test_item_by_nodeid(nodeid)
+    if test_item is not None:
         send_event(
             Event(
                 type=EventType.TEST_OUTCOME,
                 data={
                     "nodeid": nodeid,
                     "status": test_item.status,
+                    "duration": (
+                        test_item.call_duration
+                        + REPORT.setup_durations[nodeid]
+                        + REPORT.teardown_durations[nodeid]
+                    )
+                    if test_item.status == "passed"
+                    else None,
                 },
             )
         )
-    else:
-        yield
 
 
 @pytest.hookimpl(hookwrapper=True)

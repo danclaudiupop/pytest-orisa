@@ -105,7 +105,7 @@ class TestsTree(Tree):
             ):
                 status = data.get("status", "")
                 if status == "passed":
-                    node.label = f"{node.data['name']} [green]● [/]"
+                    node.label = f"{node.data['name']} [green]● [/] [grey58]{data.get('duration'):.1f}s[/]"
                 elif status == "failed":
                     node.label = f"{node.data['name']} [red]✖ [/]"
                 elif status == "skipped":

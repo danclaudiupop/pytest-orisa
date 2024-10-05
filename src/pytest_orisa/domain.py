@@ -61,3 +61,10 @@ class Report:
     teardown_durations: dict[str, float] = field(default_factory=dict)
     total_duration: float = 0.0
     exit_status: int = 0
+
+    def get_test_item_by_nodeid(self, nodeid: str) -> TestItem | None:
+        for test_list in [self.passed, self.failed, self.skipped, self.xfailed]:
+            for test_item in test_list:
+                if test_item.nodeid == nodeid:
+                    return test_item
+        return None
