@@ -43,11 +43,11 @@ class TestsTree(Tree):
 
     def on_mount(self) -> None:
         self.orisa.event_dispatcher.register_handler(
-            event_type=EventType.TREE_COLLECTION,
+            event_type=EventType.TESTS_COLLECTED,
             handler=lambda data: self.build_tree(data),
         )
         self.orisa.event_dispatcher.register_handler(
-            event_type=EventType.TESTS_TO_RUN_COLLECTION,
+            event_type=EventType.TESTS_SCHEDULED,
             handler=lambda nodeids: self.mark_tests_as_running(nodeids),
         )
         self.orisa.event_dispatcher.register_handler(

@@ -234,7 +234,7 @@ def pytest_collection_modifyitems(
         if config.getoption("--collect-only"):
             send_event(
                 Event(
-                    type=EventType.TREE_COLLECTION,
+                    type=EventType.TESTS_COLLECTED,
                     data=build_pytest_tree(items),
                 )
             )
@@ -246,7 +246,7 @@ def pytest_collection_finish(session: Session) -> None:
     ):
         send_event(
             Event(
-                type=EventType.TESTS_TO_RUN_COLLECTION,
+                type=EventType.TESTS_SCHEDULED,
                 data=[item.nodeid for item in session.items],
             )
         )
