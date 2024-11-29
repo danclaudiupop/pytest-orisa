@@ -2,6 +2,7 @@ import asyncio
 import json
 import socket
 import threading
+import time
 from typing import Callable
 
 from pytest_orisa.domain import Event
@@ -84,11 +85,21 @@ class EventDispatcher:
             return self.event_data.get(event_type, None)
 
 
-def send_event(event: Event) -> None:
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect(("localhost", 1337))
-    client_socket.sendall(event.serialize().encode("utf-8"))
-    client_socket.close()
+def send_event(event: Event, max_retries=3, retry_delay=0.1) -> None:
+    for attempt in range(max_retries):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
+                client_socket.settimeout(5)
+                client_socket.connect(("localhost", 1337))
+                client_socket.sendall(event.serialize().encode("utf-8"))
+            return
+        except (ConnectionResetError, BrokenPipeError):
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+            else:
+                print(f"Failed to send event after {max_retries} attempts.")
+        except Exception as e:
+            print(f"An error occurred while sending event: {str(e)}")
 
 
 async def wait_for_server(host, port, max_retries=5, retry_delay=0.1) -> None:

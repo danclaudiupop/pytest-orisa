@@ -204,19 +204,20 @@ class RunResult(TabbedContent):
         self.remove_class("-running")
         self.update_summary_tab(report)
         self.query_one(TestSessionStatusBar).test_session_finished()
-        await self.push_passed_tests(report)
         await self.push_failed_tests(report)
+        await self.push_passed_tests(report)
         await self.push_skipped_tests(report)
         await self.push_live_logs(report)
 
     def update_summary_tab(self, report: dict) -> None:
         total_tests = sum(
-            len(report[key]) for key in ["passed", "failed", "skipped", "xfailed"]
+            len(report["test_results"].get(key, []))
+            for key in ["passed", "failed", "skipped", "xfailed"]
         )
         self.get_tab("summary").label = f"[black on white] {total_tests} [/] tests"
 
     async def push_failed_tests(self, report: dict) -> None:
-        failed_reports: list[dict] = report["failed"]
+        failed_reports: list[dict] = report["test_results"].get("failed")
 
         if not failed_reports:
             return
@@ -243,7 +244,7 @@ class RunResult(TabbedContent):
         )
 
     async def push_passed_tests(self, report: dict) -> None:
-        passed_reports: list[dict] = report["passed"]
+        passed_reports: list[dict] = report["test_results"].get("passed")
 
         if not passed_reports:
             return
@@ -262,11 +263,13 @@ class RunResult(TabbedContent):
 
         for passed in passed_reports:
             nodeid = passed["nodeid"]
-            setup_duration = report["setup_durations"][nodeid]
-            call_duration = passed["call_duration"]
-            teardown_duration = report["teardown_durations"][nodeid]
+            setup_duration = report["test_results"]["rest"][nodeid]["setup"]["duration"]
+            call_duration = passed["duration"]
+            teardown_duration = report["test_results"]["rest"][nodeid]["teardown"][
+                "duration"
+            ]
             total_duration = setup_duration + call_duration + teardown_duration
-            fixtures_count = len(passed["fixtures"])
+            fixtures_count = 1
 
             table.add_row(
                 nodeid,
@@ -285,7 +288,7 @@ class RunResult(TabbedContent):
         )
 
     async def push_skipped_tests(self, report: dict) -> None:
-        skipped_reports: list[dict] = report["skipped"]
+        skipped_reports: list[dict] = report["test_results"].get("skipped")
 
         if not skipped_reports:
             return
@@ -304,7 +307,7 @@ class RunResult(TabbedContent):
         )
 
     async def push_live_logs(self, report: dict) -> None:
-        passed_reports: list[dict] = report["passed"]
+        passed_reports: list[dict] = report["test_results"].get("passed")
 
         logs_entries: list[Collapsible] = []
         for test_report in passed_reports:

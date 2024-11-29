@@ -1,150 +1,152 @@
-import logging
 import os
 import subprocess
 import time
-from dataclasses import asdict
-from typing import Any, Generator
+from typing import Any
 
 import pytest
 from _pytest import nodes
 from _pytest._io import TerminalWriter
 from _pytest.nodes import Node
 from _pytest.reports import TestReport
+from _pytest.terminal import TerminalReporter
 from pytest import (
-    CallInfo,
     Class,
     Config,
-    ExitCode,
     Function,
-    Item,
     Session,
 )
 
-from pytest_orisa.domain import Event, EventType, NodeType, Report, TestItem
+from pytest_orisa.domain import (
+    Event,
+    EventType,
+    NodeType,
+)
 from pytest_orisa.event_dispatcher import send_event
 
-logging.basicConfig(level=logging.ERROR)
-logger: logging.Logger = logging.getLogger(__name__)
 
-
-REPORT = Report()
-
-
-@pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(
-    item: Item, call: CallInfo[None]
-) -> Generator[None, Any, None]:
-    if item.config.getoption("--enable-orisa"):
-        outcome = yield
-        report: TestReport = outcome.get_result()
-        nodeid = report.nodeid
-
-        test_item = next(
-            (
-                t
-                for t in REPORT.passed + REPORT.failed + REPORT.skipped + REPORT.xfailed
-                if t.nodeid == nodeid
-            ),
-            None,
-        )
-        if test_item is None:
-            test_item = TestItem(nodeid=nodeid)
-
-        if report.skipped:
-            test_item.status = "skipped"
-            test_item.skip_reason = str(report.longrepr[2]) if report.longrepr else ""  # type: ignore
-            REPORT.skipped.append(test_item)
-
-        elif report.when == "call":
-            test_item.call_duration = report.duration
-
-            if report.passed:
-                test_item.status = "passed"
-                test_item.fixtures = [
-                    {
-                        "argname": argname,
-                        "scope": fixture[0].scope,
-                    }
-                    for argname, fixture in item._fixtureinfo.name2fixturedefs.items()
-                ]
-                test_item.caplog = report.caplog
-                REPORT.passed.append(test_item)
-
-            elif report.failed:
-                test_item.status = "failed"
-                test_item.longreprtext = report.longreprtext
-                test_item.capstderr = report.capstderr
-                test_item.caplog = report.caplog
-                REPORT.failed.append(test_item)
-
-    else:
-        yield
+def pytest_addoption(parser) -> None:
+    parser.addoption(
+        "--enable-orisa",
+        action="store_true",
+        default=False,
+        help="Enable Orisa plugin functionality",
+    )
 
 
 @pytest.hookimpl(trylast=True)
-def pytest_runtest_logfinish(nodeid: str, location: tuple) -> None:
-    test_item: TestItem | None = REPORT.get_test_item_by_nodeid(nodeid)
-    if test_item is not None:
+def pytest_configure(config: Config) -> None:
+    if config.getoption("--enable-orisa"):
+        run_log_width = os.getenv("ORISA_RUN_LOG_WIDTH")
+        if run_log_width is not None:
+            run_log_width = int(run_log_width)
+
+            terminal_writer: TerminalWriter = config.get_terminal_writer()
+            terminal_writer.fullwidth = run_log_width
+        config.pluginmanager.register(OrisaPlugin(config), "orisa_plugin")
+
+
+class OrisaPlugin:
+    def __init__(self, config: Config):
+        self.config: Config = config
+
+    def is_enabled(self) -> Any:
+        return self.config.getoption("--enable-orisa")
+
+    @pytest.hookimpl(trylast=True)
+    def pytest_runtest_logreport(self, report: TestReport):
+        if not self.is_enabled():
+            return
+
+        is_relevant = report.when == "call" or (
+            report.when == "setup" and report.outcome in ["failed", "skipped"]
+        )
+
+        if not is_relevant:
+            return
+
         send_event(
             Event(
                 type=EventType.TEST_OUTCOME,
                 data={
-                    "nodeid": nodeid,
-                    "status": test_item.status,
-                    "duration": (
-                        test_item.call_duration
-                        + REPORT.setup_durations[nodeid]
-                        + REPORT.teardown_durations[nodeid]
-                    )
-                    if test_item.status == "passed"
-                    else None,
+                    "nodeid": report.nodeid,
+                    "status": report.outcome,
+                    "duration": report.duration,
                 },
             )
         )
 
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_terminal_summary(
+        self, terminalreporter: TerminalReporter, exitstatus: int, config: Config
+    ) -> None:
+        if not self.is_enabled():
+            return
 
-@pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_setup(item: Item) -> Generator:
-    if item.config.getoption("--enable-orisa"):
-        nodeid = item.nodeid
-        start_time = time.time()
-        yield
-        end_time = time.time()
-        REPORT.setup_durations[nodeid] = end_time - start_time
-    else:
-        yield
+        total_duration = time.time() - terminalreporter._sessionstarttime
 
+        # Process empty category items
+        rest_results = {}
+        if "" in terminalreporter.stats:
+            for report in terminalreporter.stats[""]:
+                nodeid = report.nodeid
+                if nodeid not in rest_results:
+                    rest_results[nodeid] = {}
 
-@pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_teardown(item: Item) -> Generator:
-    if item.config.getoption("--enable-orisa"):
-        nodeid = item.nodeid
-        start_time = time.time()
-        yield
-        end_time = time.time()
-        REPORT.teardown_durations[nodeid] = end_time - start_time
-    else:
-        yield
+                rest_results[nodeid][report.when] = {
+                    "outcome": report.outcome,
+                    "duration": report.duration,
+                    "caplog": report.caplog,
+                    "longreprtext": report.longreprtext,
+                }
 
+        stats = {
+            "exit_code": str(exitstatus),
+            "total_duration": total_duration,
+            "test_results": {
+                "rest": rest_results,
+                **{
+                    category: [
+                        {
+                            "nodeid": report.nodeid,
+                            "outcome": report.outcome,
+                            "duration": report.duration,
+                            "caplog": report.caplog,
+                            "longreprtext": report.longreprtext,
+                            "when": report.when,
+                            "capstderr": report.capstderr,
+                            "skip_reason": str(report.longrepr[2])
+                            if category == "skipped"
+                            else "",
+                        }
+                        for report in reports
+                    ]
+                    for category, reports in terminalreporter.stats.items()
+                    if category not in ["deselected", ""]
+                },
+            },
+        }
 
-@pytest.hookimpl(tryfirst=True)
-def pytest_sessionfinish(session: Session, exitstatus: ExitCode) -> None:
-    if session.config.getoption("--enable-orisa") and not session.config.getoption(
-        "--collect-only"
-    ):
-        REPORT.total_duration = (
-            time.time()
-            - session.config.pluginmanager.get_plugin(
-                "terminalreporter"
-            )._sessionstarttime
-        )
-        REPORT.exit_status = exitstatus
-        send_event(
-            Event(
-                type=EventType.REPORT,
-                data=asdict(REPORT),
+        send_event(Event(type=EventType.REPORT, data=stats))
+
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_collection_finish(self, session: Session) -> None:
+        if not self.is_enabled():
+            return
+
+        if session.config.getoption("--collect-only"):
+            send_event(
+                Event(
+                    type=EventType.TESTS_COLLECTED,
+                    data=build_pytest_tree(session.items),
+                )
             )
-        )
+        else:
+            send_event(
+                Event(
+                    type=EventType.TESTS_SCHEDULED,
+                    data=[item.nodeid for item in session.items],
+                )
+            )
 
 
 def build_pytest_tree(items: list[nodes.Item]) -> dict:
@@ -206,50 +208,6 @@ def build_pytest_tree(items: list[nodes.Item]) -> dict:
             )
 
     return tree
-
-
-def pytest_addoption(parser):
-    parser.addoption(
-        "--enable-orisa",
-        action="store_true",
-        default=False,
-        help="Enable Orisa plugin functionality",
-    )
-
-
-@pytest.hookimpl(trylast=True)
-def pytest_configure(config: Config) -> None:
-    run_log_width = os.getenv("ORISA_RUN_LOG_WIDTH")
-    if run_log_width is not None:
-        run_log_width = int(run_log_width)
-
-        terminal_writer: TerminalWriter = config.get_terminal_writer()
-        terminal_writer.fullwidth = run_log_width
-
-
-def pytest_collection_modifyitems(
-    session: Session, config: Config, items: list[nodes.Item]
-) -> None:
-    if config.getoption("--enable-orisa"):
-        if config.getoption("--collect-only"):
-            send_event(
-                Event(
-                    type=EventType.TESTS_COLLECTED,
-                    data=build_pytest_tree(items),
-                )
-            )
-
-
-def pytest_collection_finish(session: Session) -> None:
-    if session.config.getoption("--enable-orisa") and not session.config.getoption(
-        "--collect-only"
-    ):
-        send_event(
-            Event(
-                type=EventType.TESTS_SCHEDULED,
-                data=[item.nodeid for item in session.items],
-            )
-        )
 
 
 def collect_tests() -> None:
