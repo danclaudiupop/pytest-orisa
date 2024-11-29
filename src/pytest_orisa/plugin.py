@@ -1,7 +1,6 @@
 import os
 import subprocess
 import time
-from typing import Any
 
 import pytest
 from _pytest import nodes
@@ -26,7 +25,7 @@ from pytest_orisa.event_dispatcher import send_event
 
 def pytest_addoption(parser) -> None:
     parser.addoption(
-        "--enable-orisa",
+        "--disable-orisa",
         action="store_true",
         default=False,
         help="Enable Orisa plugin functionality",
@@ -35,7 +34,7 @@ def pytest_addoption(parser) -> None:
 
 @pytest.hookimpl(trylast=True)
 def pytest_configure(config: Config) -> None:
-    if config.getoption("--enable-orisa"):
+    if not config.getoption("--disable-orisa"):
         run_log_width = os.getenv("ORISA_RUN_LOG_WIDTH")
         if run_log_width is not None:
             run_log_width = int(run_log_width)
@@ -49,14 +48,8 @@ class OrisaPlugin:
     def __init__(self, config: Config):
         self.config: Config = config
 
-    def is_enabled(self) -> Any:
-        return self.config.getoption("--enable-orisa")
-
     @pytest.hookimpl(trylast=True)
     def pytest_runtest_logreport(self, report: TestReport):
-        if not self.is_enabled():
-            return
-
         is_relevant = report.when == "call" or (
             report.when == "setup" and report.outcome in ["failed", "skipped"]
         )
@@ -79,12 +72,9 @@ class OrisaPlugin:
     def pytest_terminal_summary(
         self, terminalreporter: TerminalReporter, exitstatus: int, config: Config
     ) -> None:
-        if not self.is_enabled():
-            return
-
         total_duration = time.time() - terminalreporter._sessionstarttime
 
-        # Process empty category items
+        # Process empty category reports
         rest_results = {}
         if "" in terminalreporter.stats:
             for report in terminalreporter.stats[""]:
@@ -130,9 +120,6 @@ class OrisaPlugin:
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_collection_finish(self, session: Session) -> None:
-        if not self.is_enabled():
-            return
-
         if session.config.getoption("--collect-only"):
             send_event(
                 Event(
@@ -213,7 +200,7 @@ def build_pytest_tree(items: list[nodes.Item]) -> dict:
 def collect_tests() -> None:
     try:
         subprocess.run(
-            ["pytest", "--collect-only", "-q", "--enable-orisa"],
+            ["pytest", "--collect-only", "-q"],
             check=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -235,13 +222,13 @@ def run_node(
         else:
             path = node["path"]
 
-        args: list[str] = [path, "--enable-orisa"]
+        args: list[str] = []
         for flag, is_active in pytest_cli_flags:
             if is_active:
                 args.append(flag)
 
     return subprocess.Popen(
-        ["pytest", *args],
+        ["pytest", path, *args],
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
