@@ -27,12 +27,6 @@ class GoToTest(Message):
 
 
 class PassedTestDataTable(DataTable):
-    DEFAULT_CSS = """
-        PassedTestDataTable {
-            padding-bottom: 2;
-        }
-    """
-
     @on(DataTable.RowSelected)
     def go_to_test(self, event: DataTable.RowSelected) -> None:
         row_index: int = event.cursor_row
@@ -45,7 +39,7 @@ class TestOutputDisplay(Label):
         TestOutputDisplay {
             & > Label {
                 overflow: auto;
-                width: 100%
+                width: 100%;
             }
 
             & > Grid {
@@ -56,12 +50,14 @@ class TestOutputDisplay(Label):
 
                 & > #go-to-test {
                     dock: left;
-                    background: darkgrey;
+                    background: $accent;
+                    color: $text;
                 }
 
                 & > #copy-to-clipboard {
                     dock: right;
-                    background: darkgrey;
+                    background: grey;
+                    color: $text;
                 }
 
             }
@@ -94,7 +90,7 @@ class TestSessionStatusBar(Grid):
     DEFAULT_CSS = """
         TestSessionStatusBar {
             height: 1;
-            background: $panel;
+            background: $surface;
             dock: bottom;
             margin-top: 1;
 
@@ -105,7 +101,9 @@ class TestSessionStatusBar(Grid):
 
             & > #action-button {
                 dock: right;
-                background: yellow;
+                width: 20;
+                background: $warning;
+                color: $text;
             }
         }
     """
@@ -123,7 +121,7 @@ class TestSessionStatusBar(Grid):
             f" Test run at {datetime.now().strftime('%m/%d/%Y, %I:%M:%S %p')}",
             id="run-at",
         )
-        yield Button("Cancel", id="action-button")
+        yield Button("Stop", id="action-button")
 
     @property
     def action_button(self) -> Button:
@@ -132,7 +130,7 @@ class TestSessionStatusBar(Grid):
     def test_session_finished(self) -> None:
         self.test_session_is_running = False
         self.action_button.label = "✂ Copy output"
-        self.action_button.styles.background = "darkgrey"
+        self.action_button.styles.background = "grey"
 
     @on(Button.Pressed, selector="#action-button")
     def handle_button_press(self) -> None:
@@ -160,7 +158,6 @@ class RunResult(TabbedContent):
             }
 
             & > ContentSwitcher{
-                padding-bottom: -1;
 
                 & > TabPane Collapsible {
                     overflow-x: auto;
@@ -185,7 +182,7 @@ class RunResult(TabbedContent):
                 }
 
                 & > TabPane Log {
-                    overflow: auto;
+                    padding-left: 2;
                     background: $background;
                 }
             }
@@ -344,22 +341,24 @@ class RunContent(TabbedContent):
         }
     """
 
-    tab_color: Reactive[str] = reactive("cyan", always_update=True)
+    tab_color: Reactive[str] = reactive("green", always_update=True)
     latest_active: var[str | None] = var(None, init=False)
 
     def watch_tab_color(self, tab_color: str) -> None:
         if self.latest_active:
             tab = self.get_tab(self.latest_active)
             tab.styles.background = tab_color
+            tab.styles.color = "darkgrey"
             tab.styles.animate("opacity", value=0.95, duration=0.9)
 
     async def push_new_pane(self, run_result: RunResult) -> None:
         n: int = self.tab_count + 1
-        pane = TabPane(f"Run #{n} ", run_result, id=f"tab-{n}")
+        pane = TabPane(f"Run #{n}", run_result, id=f"tab-{n}")
         before = None if self.tab_count == 0 else f"tab-{n-1}"
         await self.add_pane(pane, before=before)
         self.active = f"tab-{n}"
         self.latest_active = self.active
         active_tab = self.get_tab(self.active)
         active_tab.styles.margin = (0, 1, 0, 1)
-        active_tab.styles.background = "ansi_bright_yellow"
+        active_tab.styles.background = "yellow"
+        active_tab.styles.color = "black"

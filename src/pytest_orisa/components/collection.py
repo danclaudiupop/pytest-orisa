@@ -24,17 +24,6 @@ class TestsTree(Tree):
             dock: left;
             border: solid grey;
             padding: 1;
-
-            & > .tree--guides,
-            & > .tree--guides-hover,
-            & > .tree--guides-selected {
-                color: $primary;
-            }
-
-            & > .tree--cursor,
-            &:focus > .tree--cursor {
-                background: $primary;
-            }
         }
     """
 
@@ -42,6 +31,7 @@ class TestsTree(Tree):
     show_root = var(False)
 
     def on_mount(self) -> None:
+        self.focus()
         self.orisa.event_dispatcher.register_handler(
             event_type=EventType.TESTS_COLLECTED,
             handler=lambda data: self.build_tree(data),
@@ -59,9 +49,7 @@ class TestsTree(Tree):
     def build_tree(self, data: dict) -> None:
         if data is not None:
             self.clear()
-            self.loading = True
             self.update_tree(plugin_pytest_tree=data["data"], parent=self.root)
-            self.loading = False
             self.border_title = f"Tests [black on white ] {data['meta']['total']} [/]"
 
     def update_tree(self, *, plugin_pytest_tree: dict, parent: TreeNode | Tree) -> None:
@@ -105,7 +93,7 @@ class TestsTree(Tree):
             ):
                 status = data.get("status", "")
                 if status == "passed":
-                    node.label = f"{node.data['name']} [green]● [/] [grey58]{data.get('duration'):.1f}s[/]"
+                    node.label = f"{node.data['name']} [green]● [/]"
                 elif status == "failed":
                     node.label = f"{node.data['name']} [red]✖ [/]"
                 elif status == "skipped":

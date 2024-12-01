@@ -6,13 +6,13 @@ import pytest
 from _pytest import nodes
 from _pytest._io import TerminalWriter
 from _pytest.nodes import Node
-from _pytest.reports import TestReport
 from _pytest.terminal import TerminalReporter
 from pytest import (
     Class,
     Config,
     Function,
     Session,
+    TestReport,
 )
 
 from pytest_orisa.domain import (
@@ -63,7 +63,6 @@ class OrisaPlugin:
                 data={
                     "nodeid": report.nodeid,
                     "status": report.outcome,
-                    "duration": report.duration,
                 },
             )
         )

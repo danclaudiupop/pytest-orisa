@@ -119,6 +119,9 @@ class OrisaApp(App):
         self.pytest_cli_flags: list[tuple[str, bool]] = []
         self.current_run_worker: Worker | None = None
 
+    def on_mount(self) -> None:
+        self.theme = "tokyo-night"
+
     async def on_load(self) -> None:
         self.start_event_dispatcher()
         await wait_for_server("localhost", 1337)
@@ -332,7 +335,7 @@ class OrisaApp(App):
         run_result.report = self.event_dispatcher.get_event_data(EventType.REPORT)
 
         if returncode == ExitCode.OK:
-            status, color, severity = "PASSED", "cyan", "information"
+            status, color, severity = "PASSED", "mediumspringgreen", "information"
         else:
             status, color, severity = "FAILED", "crimson", "error"
 

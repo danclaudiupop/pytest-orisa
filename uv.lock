@@ -441,7 +441,7 @@ dev = [
 requires-dist = [
     { name = "platformdirs", specifier = ">=4.3.6" },
     { name = "pytest", specifier = ">=8.3.3" },
-    { name = "textual", extras = ["python", "syntax"], specifier = ">=0.79.1" },
+    { name = "textual", extras = ["python", "syntax"], specifier = "==0.88.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -471,7 +471,7 @@ wheels = [
 
 [[package]]
 name = "textual"
-version = "0.82.0"
+version = "0.88.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "markdown-it-py", extra = ["linkify", "plugins"] },
@@ -479,9 +479,9 @@ dependencies = [
     { name = "rich" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b6/cb/dd7d1653ef6a6b90b6594548c0746a20dda15ea7301682ead732f9e10064/textual-0.82.0.tar.gz", hash = "sha256:db93a2bb3ba9fdb2a536272cd5c8144c9c9682df0370a99361b670c6191b0a4d", size = 1445662 }
+sdist = { url = "https://files.pythonhosted.org/packages/25/b7/601f94b4f4aca85e2d24c5d401e447ed9ab1aed710e811a1f7559c973031/textual-0.88.0.tar.gz", hash = "sha256:bf9cc3ec9d34957c361eabf739e59272295323478cc822633fb0a7b7cc2a0ac3", size = 1519716 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/83/3d/24a43d392cfcf8024d661a94d6b54ef687105c4ab78c3b74332e96fa4d37/textual-0.82.0-py3-none-any.whl", hash = "sha256:4ce00dc898fab3a829aa835071f4e8284aad57f13870e871d0ac516cc34b3645", size = 599133 },
+    { url = "https://files.pythonhosted.org/packages/85/89/ac433063e19c31a3692720354dc370fd71f83ddb69e1382fa5faec2586ed/textual-0.88.0-py3-none-any.whl", hash = "sha256:87a1085a403e3a95aa4b954c530d46947d830e9ad4b8c15490104c0b4a452b6a", size = 654963 },
 ]
 
 [package.optional-dependencies]
