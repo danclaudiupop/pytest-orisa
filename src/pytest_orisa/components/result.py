@@ -201,10 +201,12 @@ class RunResult(TabbedContent):
         self.remove_class("-running")
         self.update_summary_tab(report)
         self.query_one(TestSessionStatusBar).test_session_finished()
-        await self.push_failed_tests(report)
-        await self.push_passed_tests(report)
-        await self.push_skipped_tests(report)
-        await self.push_live_logs(report)
+
+        css_variables = self.app.get_css_variables()
+        await self.push_failed_tests(report, css_variables)
+        await self.push_passed_tests(report, css_variables)
+        await self.push_skipped_tests(report, css_variables)
+        await self.push_live_logs(report, css_variables)
 
     def update_summary_tab(self, report: dict) -> None:
         total_tests = sum(
@@ -213,7 +215,7 @@ class RunResult(TabbedContent):
         )
         self.get_tab("summary").label = f"[black on white] {total_tests} [/] tests"
 
-    async def push_failed_tests(self, report: dict) -> None:
+    async def push_failed_tests(self, report: dict, css_variables: dict) -> None:
         failed_reports: list[dict] = report["test_results"].get("failed")
 
         if not failed_reports:
@@ -235,12 +237,12 @@ class RunResult(TabbedContent):
 
         await self.add_pane(
             TabPane(
-                f"[black on red] {len(failed_reports)} [/] failed",
+                f"[black on {css_variables['error']}] {len(failed_reports)} [/] failed",
                 VerticalScroll(*entries),
             )
         )
 
-    async def push_passed_tests(self, report: dict) -> None:
+    async def push_passed_tests(self, report: dict, css_variables: dict) -> None:
         passed_reports: list[dict] = report["test_results"].get("passed")
 
         if not passed_reports:
@@ -279,12 +281,12 @@ class RunResult(TabbedContent):
 
         await self.add_pane(
             TabPane(
-                f"[black on green] {len(passed_reports)} [/] passed",
+                f"[black on {css_variables['success']}] {len(passed_reports)} [/] passed",
                 VerticalScroll(table),
             )
         )
 
-    async def push_skipped_tests(self, report: dict) -> None:
+    async def push_skipped_tests(self, report: dict, css_variables: dict) -> None:
         skipped_reports: list[dict] = report["test_results"].get("skipped")
 
         if not skipped_reports:
@@ -298,13 +300,16 @@ class RunResult(TabbedContent):
 
         await self.add_pane(
             TabPane(
-                f"[black on yellow] {len(skipped_reports)} [/] skipped",
+                f"[black on {css_variables['warning']}] {len(skipped_reports)} [/] skipped",
                 VerticalScroll(table),
             )
         )
 
-    async def push_live_logs(self, report: dict) -> None:
+    async def push_live_logs(self, report: dict, css_variables: dict) -> None:
         passed_reports: list[dict] = report["test_results"].get("passed")
+
+        if not passed_reports:
+            return
 
         logs_entries: list[Collapsible] = []
         for test_report in passed_reports:
@@ -324,7 +329,7 @@ class RunResult(TabbedContent):
         if logs_entries:
             await self.add_pane(
                 TabPane(
-                    f"[black on blue] {len(logs_entries)} [/] live logs",
+                    f"[black on {css_variables['primary']}] {len(logs_entries)} [/] live logs",
                     VerticalScroll(*logs_entries),
                 )
             )
@@ -341,14 +346,13 @@ class RunContent(TabbedContent):
         }
     """
 
-    tab_color: Reactive[str] = reactive("green", always_update=True)
+    tab_color: Reactive[str] = reactive("", always_update=True)
     latest_active: var[str | None] = var(None, init=False)
 
     def watch_tab_color(self, tab_color: str) -> None:
         if self.latest_active:
             tab = self.get_tab(self.latest_active)
             tab.styles.background = tab_color
-            tab.styles.color = "darkgrey"
             tab.styles.animate("opacity", value=0.95, duration=0.9)
 
     async def push_new_pane(self, run_result: RunResult) -> None:
@@ -360,5 +364,4 @@ class RunContent(TabbedContent):
         self.latest_active = self.active
         active_tab = self.get_tab(self.active)
         active_tab.styles.margin = (0, 1, 0, 1)
-        active_tab.styles.background = "yellow"
-        active_tab.styles.color = "black"
+        active_tab.styles.background = self.app.get_css_variables()["warning"]

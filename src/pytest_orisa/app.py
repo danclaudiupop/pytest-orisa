@@ -62,7 +62,7 @@ class SearchCommandPalette(CommandPalette):
 
         SearchCommandPalette:dark > .command-palette--highlight {
             text-style: bold;
-            color: royalblue;
+            color: $primary-darken-1;
         }
     """
 
@@ -120,7 +120,7 @@ class OrisaApp(App):
         self.current_run_worker: Worker | None = None
 
     def on_mount(self) -> None:
-        self.theme = "tokyo-night"
+        self.theme = "catppuccin-mocha"
 
     async def on_load(self) -> None:
         self.start_event_dispatcher()
@@ -333,11 +333,11 @@ class OrisaApp(App):
         current_running_node: dict,
     ) -> None:
         run_result.report = self.event_dispatcher.get_event_data(EventType.REPORT)
-
+        css_variables = self.get_css_variables()
         if returncode == ExitCode.OK:
-            status, color, severity = "PASSED", "mediumspringgreen", "information"
+            status, color, severity = "PASSED", css_variables["success"], "information"
         else:
-            status, color, severity = "FAILED", "crimson", "error"
+            status, color, severity = "FAILED", css_variables["error"], "error"
 
         self.run_content.tab_color = color
         self.app.notify(

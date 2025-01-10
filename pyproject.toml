@@ -23,8 +23,10 @@ classifiers = [
 
 dependencies = [
     "pytest>=8.3.3",
-    "textual[python,syntax]==0.88.0",
+    "textual==1.0.0",
     "platformdirs>=4.3.6",
+    "tree-sitter>=0.23.0",
+    "tree-sitter-python>=0.23.0",
 ]
 
 [build-system]

@@ -13,6 +13,8 @@ class EventDispatcher:
         self.host = host
         self.port = port
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.server_socket.settimeout(1.0)
         self.server_socket.bind((self.host, self.port))
         self.server_socket.listen(5)
         self.shutdown_flag = threading.Event()
@@ -69,16 +71,25 @@ class EventDispatcher:
                 client_thread = threading.Thread(
                     target=self.handle_client, args=(client_socket,)
                 )
+                client_thread.daemon = True
                 self.client_threads.append(client_thread)
                 client_thread.start()
             except socket.timeout:
                 continue
+            except OSError:
+                if not self.shutdown_flag.is_set():
+                    continue
 
     def stop(self) -> None:
         self.shutdown_flag.set()
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.connect((self.host, self.port))
+        except (ConnectionRefusedError, OSError):
+            pass
         self.server_socket.close()
         for thread in self.client_threads:
-            thread.join()
+            thread.join(timeout=1.0)
 
     def get_event_data(self, event_type: str):
         with self.lock:
