@@ -9,6 +9,7 @@ class RunButton(Button):
         RunButton {
             width: 15;
             background: $primary;
+            color: black;
 
             & > LoadingIndicator {
                 color: black;
@@ -41,6 +42,8 @@ class NodePreview(Container):
 
             & > #show-code {
                 dock: right;
+                background: $primary;
+                color: black;
             }
 
         }

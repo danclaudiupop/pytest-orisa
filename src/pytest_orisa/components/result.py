@@ -27,12 +27,6 @@ class GoToTest(Message):
 
 
 class PassedTestDataTable(DataTable):
-    DEFAULT_CSS = """
-        PassedTestDataTable {
-            padding-bottom: 2;
-        }
-    """
-
     @on(DataTable.RowSelected)
     def go_to_test(self, event: DataTable.RowSelected) -> None:
         row_index: int = event.cursor_row
@@ -45,7 +39,7 @@ class TestOutputDisplay(Label):
         TestOutputDisplay {
             & > Label {
                 overflow: auto;
-                width: 100%
+                width: 100%;
             }
 
             & > Grid {
@@ -56,12 +50,14 @@ class TestOutputDisplay(Label):
 
                 & > #go-to-test {
                     dock: left;
-                    background: darkgrey;
+                    background: $accent;
+                    color: $text;
                 }
 
                 & > #copy-to-clipboard {
                     dock: right;
-                    background: darkgrey;
+                    background: grey;
+                    color: $text;
                 }
 
             }
@@ -94,7 +90,7 @@ class TestSessionStatusBar(Grid):
     DEFAULT_CSS = """
         TestSessionStatusBar {
             height: 1;
-            background: $panel;
+            background: $surface;
             dock: bottom;
             margin-top: 1;
 
@@ -105,7 +101,9 @@ class TestSessionStatusBar(Grid):
 
             & > #action-button {
                 dock: right;
-                background: yellow;
+                width: 20;
+                background: $warning;
+                color: $text;
             }
         }
     """
@@ -123,7 +121,7 @@ class TestSessionStatusBar(Grid):
             f" Test run at {datetime.now().strftime('%m/%d/%Y, %I:%M:%S %p')}",
             id="run-at",
         )
-        yield Button("Cancel", id="action-button")
+        yield Button("Stop", id="action-button")
 
     @property
     def action_button(self) -> Button:
@@ -132,7 +130,7 @@ class TestSessionStatusBar(Grid):
     def test_session_finished(self) -> None:
         self.test_session_is_running = False
         self.action_button.label = "✂ Copy output"
-        self.action_button.styles.background = "darkgrey"
+        self.action_button.styles.background = "grey"
 
     @on(Button.Pressed, selector="#action-button")
     def handle_button_press(self) -> None:
@@ -160,7 +158,6 @@ class RunResult(TabbedContent):
             }
 
             & > ContentSwitcher{
-                padding-bottom: -1;
 
                 & > TabPane Collapsible {
                     overflow-x: auto;
@@ -185,7 +182,7 @@ class RunResult(TabbedContent):
                 }
 
                 & > TabPane Log {
-                    overflow: auto;
+                    padding-left: 2;
                     background: $background;
                 }
             }
@@ -204,19 +201,22 @@ class RunResult(TabbedContent):
         self.remove_class("-running")
         self.update_summary_tab(report)
         self.query_one(TestSessionStatusBar).test_session_finished()
-        await self.push_passed_tests(report)
-        await self.push_failed_tests(report)
-        await self.push_skipped_tests(report)
-        await self.push_live_logs(report)
+
+        css_variables = self.app.get_css_variables()
+        await self.push_failed_tests(report, css_variables)
+        await self.push_passed_tests(report, css_variables)
+        await self.push_skipped_tests(report, css_variables)
+        await self.push_live_logs(report, css_variables)
 
     def update_summary_tab(self, report: dict) -> None:
         total_tests = sum(
-            len(report[key]) for key in ["passed", "failed", "skipped", "xfailed"]
+            len(report["test_results"].get(key, []))
+            for key in ["passed", "failed", "skipped", "xfailed"]
         )
         self.get_tab("summary").label = f"[black on white] {total_tests} [/] tests"
 
-    async def push_failed_tests(self, report: dict) -> None:
-        failed_reports: list[dict] = report["failed"]
+    async def push_failed_tests(self, report: dict, css_variables: dict) -> None:
+        failed_reports: list[dict] = report["test_results"].get("failed")
 
         if not failed_reports:
             return
@@ -237,13 +237,13 @@ class RunResult(TabbedContent):
 
         await self.add_pane(
             TabPane(
-                f"[black on red] {len(failed_reports)} [/] failed",
+                f"[black on {css_variables['error']}] {len(failed_reports)} [/] failed",
                 VerticalScroll(*entries),
             )
         )
 
-    async def push_passed_tests(self, report: dict) -> None:
-        passed_reports: list[dict] = report["passed"]
+    async def push_passed_tests(self, report: dict, css_variables: dict) -> None:
+        passed_reports: list[dict] = report["test_results"].get("passed")
 
         if not passed_reports:
             return
@@ -262,11 +262,13 @@ class RunResult(TabbedContent):
 
         for passed in passed_reports:
             nodeid = passed["nodeid"]
-            setup_duration = report["setup_durations"][nodeid]
-            call_duration = passed["call_duration"]
-            teardown_duration = report["teardown_durations"][nodeid]
+            setup_duration = report["test_results"]["rest"][nodeid]["setup"]["duration"]
+            call_duration = passed["duration"]
+            teardown_duration = report["test_results"]["rest"][nodeid]["teardown"][
+                "duration"
+            ]
             total_duration = setup_duration + call_duration + teardown_duration
-            fixtures_count = len(passed["fixtures"])
+            fixtures_count = 1
 
             table.add_row(
                 nodeid,
@@ -279,13 +281,13 @@ class RunResult(TabbedContent):
 
         await self.add_pane(
             TabPane(
-                f"[black on green] {len(passed_reports)} [/] passed",
+                f"[black on {css_variables['success']}] {len(passed_reports)} [/] passed",
                 VerticalScroll(table),
             )
         )
 
-    async def push_skipped_tests(self, report: dict) -> None:
-        skipped_reports: list[dict] = report["skipped"]
+    async def push_skipped_tests(self, report: dict, css_variables: dict) -> None:
+        skipped_reports: list[dict] = report["test_results"].get("skipped")
 
         if not skipped_reports:
             return
@@ -298,13 +300,16 @@ class RunResult(TabbedContent):
 
         await self.add_pane(
             TabPane(
-                f"[black on yellow] {len(skipped_reports)} [/] skipped",
+                f"[black on {css_variables['warning']}] {len(skipped_reports)} [/] skipped",
                 VerticalScroll(table),
             )
         )
 
-    async def push_live_logs(self, report: dict) -> None:
-        passed_reports: list[dict] = report["passed"]
+    async def push_live_logs(self, report: dict, css_variables: dict) -> None:
+        passed_reports: list[dict] = report["test_results"].get("passed")
+
+        if not passed_reports:
+            return
 
         logs_entries: list[Collapsible] = []
         for test_report in passed_reports:
@@ -324,7 +329,7 @@ class RunResult(TabbedContent):
         if logs_entries:
             await self.add_pane(
                 TabPane(
-                    f"[black on blue] {len(logs_entries)} [/] live logs",
+                    f"[black on {css_variables['primary']}] {len(logs_entries)} [/] live logs",
                     VerticalScroll(*logs_entries),
                 )
             )
@@ -341,7 +346,7 @@ class RunContent(TabbedContent):
         }
     """
 
-    tab_color: Reactive[str] = reactive("cyan", always_update=True)
+    tab_color: Reactive[str] = reactive("", always_update=True)
     latest_active: var[str | None] = var(None, init=False)
 
     def watch_tab_color(self, tab_color: str) -> None:
@@ -352,11 +357,11 @@ class RunContent(TabbedContent):
 
     async def push_new_pane(self, run_result: RunResult) -> None:
         n: int = self.tab_count + 1
-        pane = TabPane(f"Run #{n} ", run_result, id=f"tab-{n}")
+        pane = TabPane(f"Run #{n}", run_result, id=f"tab-{n}")
         before = None if self.tab_count == 0 else f"tab-{n-1}"
         await self.add_pane(pane, before=before)
         self.active = f"tab-{n}"
         self.latest_active = self.active
         active_tab = self.get_tab(self.active)
         active_tab.styles.margin = (0, 1, 0, 1)
-        active_tab.styles.background = "ansi_bright_yellow"
+        active_tab.styles.background = self.app.get_css_variables()["warning"]

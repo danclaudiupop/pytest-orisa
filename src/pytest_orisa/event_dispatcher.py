@@ -2,6 +2,7 @@ import asyncio
 import json
 import socket
 import threading
+import time
 from typing import Callable
 
 from pytest_orisa.domain import Event
@@ -12,6 +13,8 @@ class EventDispatcher:
         self.host = host
         self.port = port
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.server_socket.settimeout(1.0)
         self.server_socket.bind((self.host, self.port))
         self.server_socket.listen(5)
         self.shutdown_flag = threading.Event()
@@ -68,27 +71,46 @@ class EventDispatcher:
                 client_thread = threading.Thread(
                     target=self.handle_client, args=(client_socket,)
                 )
+                client_thread.daemon = True
                 self.client_threads.append(client_thread)
                 client_thread.start()
             except socket.timeout:
                 continue
+            except OSError:
+                if not self.shutdown_flag.is_set():
+                    continue
 
     def stop(self) -> None:
         self.shutdown_flag.set()
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.connect((self.host, self.port))
+        except (ConnectionRefusedError, OSError):
+            pass
         self.server_socket.close()
         for thread in self.client_threads:
-            thread.join()
+            thread.join(timeout=1.0)
 
     def get_event_data(self, event_type: str):
         with self.lock:
             return self.event_data.get(event_type, None)
 
 
-def send_event(event: Event) -> None:
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect(("localhost", 1337))
-    client_socket.sendall(event.serialize().encode("utf-8"))
-    client_socket.close()
+def send_event(event: Event, max_retries=3, retry_delay=0.1) -> None:
+    for attempt in range(max_retries):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
+                client_socket.settimeout(5)
+                client_socket.connect(("localhost", 1337))
+                client_socket.sendall(event.serialize().encode("utf-8"))
+            return
+        except (ConnectionResetError, BrokenPipeError):
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+            else:
+                print(f"Failed to send event after {max_retries} attempts.")
+        except Exception as e:
+            print(f"An error occurred while sending event: {str(e)}")
 
 
 async def wait_for_server(host, port, max_retries=5, retry_delay=0.1) -> None:
